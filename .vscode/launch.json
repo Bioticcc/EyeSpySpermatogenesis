@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Train model",
+      "type": "python",
+      "request": "launch",
+      "module": "src.training.train",
+      "justMyCode": true,
+      "args": [
+        "--config",
+        "configs/train_example.json"
+      ]
+    },
+    {
+      "name": "Run GUI",
+      "type": "python",
+      "request": "launch",
+      "module": "src.app.gui",
+      "justMyCode": true
+    }
+  ]
+}

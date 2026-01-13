@@ -1,7 +1,12 @@
 $ErrorActionPreference = "Stop"
+
+# Ensure dependencies are installed via Poetry in the current shell before running.
+
+$Spec = "tubule_app.spec"
 $ModelPath = "models/exported/model.pt"
 if (-not (Test-Path $ModelPath)) {
-    Write-Warning "Model weights not found at $ModelPath. The app will still build but predictions will be disabled."
+    Write-Warning "Model weights not found at $ModelPath. Build will proceed, but predictions will be disabled until weights are added next to the exe."
 }
-poetry run pyinstaller --noconfirm --onedir --name TubuleStageApp --add-data "$ModelPath;models/exported" src/app/gui.py
-Write-Host "Build complete. Check dist/TubuleStageApp for the bundled app."
+
+poetry run pyinstaller --noconfirm $Spec
+Write-Host "Build complete. Bundle is in dist/TubuleStageApp/ (one-folder). Zip that directory for users."

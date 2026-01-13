@@ -11,7 +11,8 @@ htmlcov/
 .DS_Store
 dist/
 build/
-*.spec
+#! allow PyInstaller spec
+# *.spec
 poetry.lock
 data/raw/
 data/processed/

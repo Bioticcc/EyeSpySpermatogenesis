@@ -75,13 +75,13 @@ Cache normalized tensors to `data/processed/`:
 python -m src.dataset.preprocessing --image-size 224
 ```
 
-## Packaging (offline)
-PyInstaller one-folder build (includes model weights via `--add-data`):
+## Packaging (offline, no Python required for end users)
+- After training/export, ensure `models/exported/model.pt` exists.
+- Build on Windows with PyInstaller (one-folder bundle includes Python + deps):
 ```powershell
 scripts/build_app.ps1
-# Output: dist/TubuleStageApp/ with bundled Python + GUI + weights
 ```
-No network calls are made at runtime; ensure `models/exported/model.pt` exists before packaging for predictions.
+Output: `dist/TubuleStageApp/`. Zip that folder and share; users unzip and run `TubuleStageApp/gui.exe` (no Python install needed). If weights were missing, the app still opens but will prompt for weights.
 
 ## Developer Notes
 - Reproducibility: `src/utils/seed.py` seeds Python, NumPy, and Torch.

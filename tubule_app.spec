@@ -1,5 +1,5 @@
-# PyInstaller spec for Tubule Stage GUI (one-folder)
-# Bundles Python, dependencies, and exported model weights.
+# PyInstaller spec for Tubule Detector GUI (one-folder)
+# Bundles Python, dependencies, and exported detector weights.
 
 import sys
 from pathlib import Path
@@ -12,7 +12,7 @@ entry_script = project_root / "src" / "app" / "gui.py"
 datas = []
 
 # Bundle model weights if present.
-model_path = project_root / "models" / "exported" / "model.pt"
+model_path = project_root / "models" / "exported" / "detector.pt"
 if model_path.exists():
     datas.append((str(model_path), "models/exported"))
 else:
@@ -44,7 +44,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="TubuleStageApp",
+    name="TubuleDetectorApp",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -63,5 +63,5 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    name="TubuleStageApp",
+    name="TubuleDetectorApp",
 )

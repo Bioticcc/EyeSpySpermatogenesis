@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Phase 2 / future: stage classification labeling tool (legacy).
+
 import argparse
 import csv
 from pathlib import Path

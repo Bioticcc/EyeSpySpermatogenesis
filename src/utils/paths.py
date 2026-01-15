@@ -37,6 +37,12 @@ def labels_dir() -> Path:
     return path
 
 
+def annotations_dir() -> Path:
+    path = labels_dir() / "annotations"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def models_dir() -> Path:
     path = repo_root() / "models"
     path.mkdir(parents=True, exist_ok=True)

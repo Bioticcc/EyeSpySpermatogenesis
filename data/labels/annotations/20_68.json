@@ -1,0 +1,86 @@
+{
+  "image_id": "20_68",
+  "rel_path": "20_68.tif",
+  "tissue": "testis_tubule",
+  "boxes": [
+    {
+      "box_id": "770f13610e984c208107bdc14fd706b9",
+      "bbox_xywh": [
+        405.0,
+        245.625,
+        871.875,
+        373.125
+      ],
+      "label": "tubule",
+      "notes": ""
+    },
+    {
+      "box_id": "b05175b3a49347d19bfff0d7e657582d",
+      "bbox_xywh": [
+        161.25,
+        521.25,
+        541.875,
+        686.25
+      ],
+      "label": "tubule",
+      "notes": ""
+    },
+    {
+      "box_id": "c357857026644e3ba0223a4facf0720f",
+      "bbox_xywh": [
+        1.875,
+        69.375,
+        414.375,
+        421.875
+      ],
+      "label": "tubule",
+      "notes": ""
+    },
+    {
+      "box_id": "404834a3ea9b4b4388859d1724b19764",
+      "bbox_xywh": [
+        418.125,
+        1.875,
+        502.5,
+        300.0
+      ],
+      "label": "tubule",
+      "notes": ""
+    },
+    {
+      "box_id": "f11d4003ac9a4d39b7ea85f780513b12",
+      "bbox_xywh": [
+        980.625,
+        1.875,
+        365.625,
+        275.625
+      ],
+      "label": "tubule",
+      "notes": ""
+    },
+    {
+      "box_id": "2e9a793069914dc28c0bf3d909e8c6a2",
+      "bbox_xywh": [
+        1121.25,
+        926.25,
+        796.875,
+        262.5
+      ],
+      "label": "tubule",
+      "notes": ""
+    },
+    {
+      "box_id": "3594ab6ab862443eb4da279848421286",
+      "bbox_xywh": [
+        725.625,
+        622.5,
+        871.875,
+        345.0
+      ],
+      "label": "tubule",
+      "notes": ""
+    }
+  ],
+  "labeled_by": "Adam",
+  "labeled_at": "2026-01-14T23:41:44Z"
+}

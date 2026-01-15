@@ -7,7 +7,8 @@ readme = "README.md"
 packages = [{ include = "src" }]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+# Keep Python below 3.13 to satisfy PyInstaller and Torch requirements.
+python = ">=3.10,<3.13"
 torch = "2.1.2"
 torchvision = "0.16.2"
 numpy = "^1.26.3"

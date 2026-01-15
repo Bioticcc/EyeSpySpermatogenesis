@@ -1,0 +1,20 @@
+{
+  "image_id": "20_66",
+  "rel_path": "20_66.tif",
+  "tissue": "testis_tubule",
+  "boxes": [
+    {
+      "box_id": "f83588e2fe3d45feb11db3e5e195c95a",
+      "bbox_xywh": [
+        16.875,
+        5.625,
+        1882.5,
+        1155.0
+      ],
+      "label": "tubule",
+      "notes": ""
+    }
+  ],
+  "labeled_by": "Adam",
+  "labeled_at": "2026-01-14T23:41:56Z"
+}

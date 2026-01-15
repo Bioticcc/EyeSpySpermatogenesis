@@ -10,7 +10,12 @@ def base_path() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def bundled_model_path() -> Path:
-    # In dev: project_root/models/exported/model.pt
+def bundled_detector_path() -> Path:
+    # In dev: project_root/models/exported/detector.pt
     # In PyInstaller bundle: packaged alongside executable under models/exported
+    return base_path() / "models" / "exported" / "detector.pt"
+
+
+def bundled_stage_model_path() -> Path:
+    # Phase 2 / legacy classifier weights
     return base_path() / "models" / "exported" / "model.pt"

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Phase 2 / future: stage classification export (legacy).
+
 import argparse
 from pathlib import Path
 

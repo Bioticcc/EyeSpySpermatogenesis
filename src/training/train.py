@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Phase 2 / future: stage classification training (legacy).
+
 import argparse
 import json
 from dataclasses import asdict

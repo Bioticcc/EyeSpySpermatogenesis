@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Phase 2 / future: stage classification evaluation (legacy).
+
 import argparse
 from pathlib import Path
 from typing import Dict, List

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import datetime as dt
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -33,7 +34,17 @@ class IncludeFlag(str, Enum):
     UNKNOWN = "unknown"
 
 
-LABEL_CSV_COLUMNS = [
+DEFAULT_LABEL_CSV_COLUMNS = [
+    "image_id",
+    "rel_path",
+    "quality",
+    "include",
+    "notes",
+    "labeled_by",
+    "labeled_at",
+]
+
+LEGACY_LABEL_CSV_COLUMNS = [
     "image_id",
     "rel_path",
     "stage_cluster",
@@ -43,6 +54,8 @@ LABEL_CSV_COLUMNS = [
     "labeled_by",
     "labeled_at",
 ]
+
+LABEL_CSV_COLUMNS = DEFAULT_LABEL_CSV_COLUMNS
 
 
 @dataclass
@@ -91,3 +104,17 @@ def default_label_row(image_path: Path) -> LabelRecord:
 
 def now_iso() -> str:
     return dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+
+def label_csv_columns_for_path(path: Path) -> List[str]:
+    if not path.exists():
+        return DEFAULT_LABEL_CSV_COLUMNS
+    try:
+        with path.open("r", newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            header = next(reader, [])
+    except Exception:
+        return DEFAULT_LABEL_CSV_COLUMNS
+    if "stage_cluster" in header:
+        return LEGACY_LABEL_CSV_COLUMNS
+    return DEFAULT_LABEL_CSV_COLUMNS

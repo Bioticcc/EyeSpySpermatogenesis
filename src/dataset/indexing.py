@@ -5,7 +5,7 @@ import csv
 from pathlib import Path
 from typing import Dict, List
 
-from src.dataset.schema import LABEL_CSV_COLUMNS, LabelRecord, default_label_row
+from src.dataset.schema import LabelRecord, default_label_row, label_csv_columns_for_path
 from src.utils.logging import get_logger
 from src.utils.paths import labels_dir, raw_data_dir
 
@@ -35,7 +35,8 @@ def load_labels(path: Path) -> Dict[str, LabelRecord]:
 def save_labels(path: Path, labels: Dict[str, LabelRecord]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=LABEL_CSV_COLUMNS)
+        columns = label_csv_columns_for_path(path)
+        writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
         writer.writeheader()
         for record in labels.values():
             writer.writerow(record.as_row())

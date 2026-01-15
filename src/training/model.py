@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Phase 2 / future: stage classification model (legacy).
+
 import torch
 from torch import nn
 

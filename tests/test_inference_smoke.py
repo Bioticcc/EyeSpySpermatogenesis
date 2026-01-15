@@ -3,8 +3,8 @@ import numpy as np
 import tifffile
 import torch
 
-from src.app.inference import load_model, predict_image
-from src.training.model import create_model
+from src.app.inference import load_detector, predict_image
+from src.training.detect_model import create_detector
 
 
 def test_inference_roundtrip(tmp_path: Path) -> None:
@@ -14,11 +14,11 @@ def test_inference_roundtrip(tmp_path: Path) -> None:
     tifffile.imwrite(img_path, arr)
 
     # create dummy weights
-    model = create_model()
-    weights_path = tmp_path / "model.pt"
+    model = create_detector()
+    weights_path = tmp_path / "detector.pt"
     torch.save(model.state_dict(), weights_path)
 
-    loaded = load_model(weights_path)
-    result = predict_image(img_path, loaded)
-    assert "predicted" in result
-    assert len(result["top3"]) == 3
+    loaded = load_detector(weights_path)
+    result = predict_image(img_path, loaded, score_threshold=0.0, nms_iou=0.0, max_size=64)
+    assert "detections" in result
+    assert isinstance(result["detections"], list)

@@ -1,100 +1,105 @@
 # EyeSpySpermatogenesis
 
-Offline Windows desktop app + training pipeline to classify mouse testis seminiferous tubule TIFF images into 6 stage clusters: `XII_I`, `II_IV`, `V_VI`, `VII_VIII`, `IX_X`, `XI`.
+Offline Windows desktop app + training pipeline for Phase 1: seminiferous tubule localization (object detection) in TIFF images. Phase 2 stage classification remains in the repo as legacy/future work.
 
-## Quickstart
+## Quickstart (Phase 1: Detection)
 - Create env: `scripts/make_env.sh` (Linux/macOS) or `scripts/make_env.ps1` (Windows). Uses Poetry; Python 3.10+.
 - Index data: place `.tif/.tiff` files under `data/raw/`, then `python -m src.dataset.indexing`.
-- Label: `python -m src.dataset.labeling_tool --list --only-unlabeled` or `python -m src.dataset.labeling_tool --review`.
-- Split: `python -m src.dataset.splits --train-ratio 0.7 --val-ratio 0.15`.
-- Train: `python -m src.training.train --config configs/train_example.json` (adjust epochs, device).
-- Evaluate: `python -m src.training.eval --split-path data/splits/test.csv`.
-- GUI: `python -m src.app.gui` (warns if weights missing).
+- Annotate: `python -m src.dataset.annotation_tool` (draw bounding boxes, save JSON).
+- Train detector: `python -m src.training.detect_train --epochs 5 --batch-size 2 --device cpu`.
+- Evaluate: `python -m src.training.detect_eval --weights models/exported/detector.pt`.
+- Inference CLI: `python -m src.app.inference --weights models/exported/detector.pt data/raw/example.tif`.
+- GUI: `python -m src.app.gui`.
 - Build app (Windows): `scripts/build_app.ps1` (one-folder PyInstaller bundle).
 
 ## Repository Layout
 - `data/raw/` raw TIFFs (ignored by git)
-- `data/labels/labels.csv` label + tags (tracked)
-- `data/splits/` train/val/test CSVs (ignored)
-- `data/processed/` cached tensors (ignored)
-- `models/exported/model.pt` exported weights for inference/GUI (ignored; `.gitkeep` placeholder)
+- `data/labels/labels.csv` image-level metadata (tracked)
+- `data/labels/annotations/` per-image box annotations (tracked)
+- `data/splits/` phase-2 train/val/test CSVs (ignored)
+- `models/exported/detector.pt` exported detector weights (ignored; `.gitkeep` placeholder)
+- `models/exported/model.pt` phase-2 classifier weights (ignored; `.gitkeep` placeholder)
 - `src/` Python modules (dataset, training, app)
 - `scripts/` helper scripts
 - `tests/` lightweight pytest checks (synthetic TIFFs)
 
-## Labeling & Tagging
-`data/labels/labels.csv` columns: `image_id, rel_path, stage_cluster, quality, include, notes, labeled_by, labeled_at`.
+## Labels and Annotations
+`data/labels/labels.csv` columns:
+`image_id, rel_path, quality, include, notes, labeled_by, labeled_at`
 
-1. Scan for new files: `python -m src.dataset.indexing`.
-2. List/filter: `python -m src.dataset.labeling_tool --list --only-unlabeled --include-not-yes`.
-3. Update a single file: `python -m src.dataset.labeling_tool --image path/to/file.tif --stage V_VI --quality high --include yes --notes "good" --labeled-by me`.
-4. Review UI: `python -m src.dataset.labeling_tool --review` (Tkinter viewer with dropdowns).
+`stage_cluster` is legacy (Phase 2) and ignored by Phase 1 tooling. If present in an existing CSV, it is preserved but unused.
 
-`stage_cluster` accepts the 6 clusters or `unknown`. `quality` = `high|low|unknown`. `include` = `yes|no|unknown`. Training defaults to `include=yes` and `quality=high`.
-
-## Data Splits
-Create reproducible stratified splits on labeled, included data:
-```bash
-python -m src.dataset.splits --train-ratio 0.7 --val-ratio 0.15 --seed 42
+Per-image annotations live under `data/labels/annotations/<image_id>.json`:
+```json
+{
+  "image_id": "...",
+  "rel_path": "...",
+  "tissue": "testis_tubule",
+  "boxes": [
+    {"box_id": "...", "bbox_xywh": [x, y, w, h], "label": "tubule", "notes": ""}
+  ],
+  "labeled_by": "...",
+  "labeled_at": "ISO-8601"
+}
 ```
-Outputs `train.csv`, `val.csv`, `test.csv` under `data/splits/`.
+`bbox_xywh` is always in original image pixel coordinates. Empty `boxes` is allowed (no tubules).
 
-## Training
-Config is JSON (see `configs/train_example.json`). Key flags:
-- `include_low_quality` (default false) and `low_quality_weight` (loss weight if low quality is included).
-- Class imbalance handled via class weights computed on the training set.
+## Annotation Tool
+Launch with `python -m src.dataset.annotation_tool`.
+- Draw box: click + drag on the image.
+- Select box: click in list; delete with Delete key.
+- Redraw: select a box, click “Redraw Selected”, then draw replacement.
+- Save: writes JSON to `data/labels/annotations/` and updates `labels.csv` quality/include metadata.
 
-Run:
+## Training (Detection)
+Baseline detector: Faster R-CNN (MobileNetV3 FPN), randomly initialized (no downloads).
 ```bash
-python -m src.training.train --config configs/train_example.json --epochs 10 --batch-size 16 --device cpu
+python -m src.training.detect_train --epochs 10 --batch-size 2 --device cpu \
+  --max-size 1024 --val-ratio 0.2 --include-yes-only
 ```
-Best checkpoint saved to `models/checkpoints/best.pt` and exported weights to `models/exported/model.pt`.
+Key flags:
+- `--only-high-quality` to restrict to `quality=high`.
+- `--include-yes-only` to filter to `include=yes`.
+- `--require-annotations` to enforce JSON presence.
+- `--max-size` to downscale large images for memory.
 
-## Evaluation
+Exports best weights to `models/exported/detector.pt`.
+
+## Evaluation (Detection)
 ```bash
-python -m src.training.eval --split-path data/splits/test.csv --checkpoint models/exported/model.pt
+python -m src.training.detect_eval --weights models/exported/detector.pt --save-viz
 ```
-Reports accuracy + macro F1 and writes `models/confusion_matrix.csv`.
+Metrics: precision/recall @ IoU 0.5, mean IoU, and count error (predicted vs. true tubule count). Overlays are saved to `outputs/detect_viz/` when `--save-viz` is set.
 
-## Inference CLI
+## Inference CLI (Detection)
 ```bash
-python -m src.app.inference --weights models/exported/model.pt data/raw/example.tif
+python -m src.app.inference --weights models/exported/detector.pt data/raw/example.tif \
+  --output-json outputs/detect.json --output-csv outputs/detect.csv
 ```
-Shows predicted cluster + confidence + top-3 probabilities per file.
+Outputs per-image detections with `bbox_xywh` and confidence score.
 
-## Desktop GUI
+## Desktop GUI (Detection)
 Tkinter app: `python -m src.app.gui`
-- Load weights (auto-loads `models/exported/model.pt` if present).
-- Select one or multiple TIFFs.
-- Shows prediction, confidence, and top-3; can export results to CSV.
-- If weights are missing, the GUI stays usable but prompts to load weights.
-
-## Preprocessing (optional cache)
-Cache normalized tensors to `data/processed/`:
-```bash
-python -m src.dataset.preprocessing --image-size 224
-```
+- Load detector weights (auto-loads `models/exported/detector.pt` if present).
+- Select TIFFs, view box overlays and confidence table.
+- Export detections to JSON/CSV.
 
 ## Packaging (offline, no Python required for end users)
-- After training/export, ensure `models/exported/model.pt` exists.
+- After training/export, ensure `models/exported/detector.pt` exists.
 - Build on Windows with PyInstaller (one-folder bundle includes Python + deps):
 ```powershell
 scripts/build_app.ps1
 ```
-Output: `dist/TubuleStageApp/`. Zip that folder and share; users unzip and run `TubuleStageApp/gui.exe` (no Python install needed). If weights were missing, the app still opens but will prompt for weights.
+Output: `dist/TubuleDetectorApp/`. Zip that folder and share; users unzip and run `TubuleDetectorApp/gui.exe`.
 
-## Developer Notes
-- Reproducibility: `src/utils/seed.py` seeds Python, NumPy, and Torch.
-- TIFF I/O: `src/utils/tiff_io.py` handles 8/16-bit, grayscale/RGB, multipage (first page), normalizes to float32 `[0,1]`.
-- Augmentations: basic flips/rotations for training; configurable image size.
-- Everything runs even with empty `data/raw/` (tools log and exit cleanly).
+## Phase 2 (Stage Classification - Legacy)
+Classification code remains under `src/training/train.py`, `src/training/eval.py`, and `src/app/gui.py` (Phase 2 UI). It is not used by default Phase 1 commands.
 
 ## Testing
 ```bash
 poetry run pytest
 ```
-Tests use synthetic TIFFs; no real data required.
+Tests use synthetic TIFFs and synthetic boxes; no real data required.
 
 ## VS Code
-- Launch configs for training and GUI in `.vscode/launch.json`.
-- Default interpreter `.venv/bin/python`; adjust if needed.
+Launch configs are in `.vscode/launch.json` (annotation tool, detector training, GUI).

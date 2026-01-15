@@ -2,22 +2,28 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Train model",
+      "name": "Annotate Tubules",
       "type": "python",
       "request": "launch",
-      "module": "src.training.train",
-      "justMyCode": true,
-      "args": [
-        "--config",
-        "configs/train_example.json"
-      ]
+      "module": "src.dataset.annotation_tool",
+      "args": [],
+      "console": "integratedTerminal"
     },
     {
-      "name": "Run GUI",
+      "name": "Train Detector",
+      "type": "python",
+      "request": "launch",
+      "module": "src.training.detect_train",
+      "args": ["--epochs", "1", "--batch-size", "1", "--device", "cpu"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Tubule Detector GUI",
       "type": "python",
       "request": "launch",
       "module": "src.app.gui",
-      "justMyCode": true
+      "args": [],
+      "console": "integratedTerminal"
     }
   ]
 }

@@ -19,3 +19,8 @@ def bundled_detector_path() -> Path:
 def bundled_stage_model_path() -> Path:
     # Phase 2 / legacy classifier weights
     return base_path() / "models" / "exported" / "model.pt"
+
+
+def bundled_seg_model_path() -> Path:
+    # Phase 1 segmentation weights
+    return base_path() / "models" / "exported" / "seg_model.pt"

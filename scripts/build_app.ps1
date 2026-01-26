@@ -3,9 +3,9 @@ $ErrorActionPreference = "Stop"
 # Ensure dependencies are installed via Poetry in the current shell before running.
 
 $Spec = "tubule_app.spec"
-$ModelPath = "models/exported/detector.pt"
-if (-not (Test-Path $ModelPath)) {
-    Write-Warning "Detector weights not found at $ModelPath. Build will proceed, but predictions will be disabled until weights are added next to the exe."
+$SegPath = "models/exported/seg_model.pt"
+if (-not (Test-Path $SegPath)) {
+    Write-Warning "Segmentation weights not found at $SegPath. Build will proceed, but predictions will be disabled until weights are added next to the exe."
 }
 
 poetry run pyinstaller --noconfirm $Spec

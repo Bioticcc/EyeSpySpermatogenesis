@@ -1,5 +1,5 @@
-# PyInstaller spec for Tubule Detector GUI (one-folder)
-# Bundles Python, dependencies, and exported detector weights.
+# PyInstaller spec for Tubule Segmenter GUI (one-folder)
+# Bundles Python, dependencies, and exported model weights.
 
 import sys
 from pathlib import Path
@@ -12,11 +12,13 @@ entry_script = project_root / "src" / "app" / "gui.py"
 datas = []
 
 # Bundle model weights if present.
-model_path = project_root / "models" / "exported" / "detector.pt"
-if model_path.exists():
-    datas.append((str(model_path), "models/exported"))
-else:
-    print(f"WARNING: Model weights not found at {model_path}. Build will proceed without weights.", file=sys.stderr)
+detector_path = project_root / "models" / "exported" / "detector.pt"
+seg_path = project_root / "models" / "exported" / "seg_model.pt"
+for model_path in (detector_path, seg_path):
+    if model_path.exists():
+        datas.append((str(model_path), "models/exported"))
+    else:
+        print(f"WARNING: Model weights not found at {model_path}. Build will proceed without weights.", file=sys.stderr)
 
 # Include tifffile data and torch/torchvision assets to keep runtime dependencies intact.
 datas += collect_data_files("tifffile")

@@ -1,23 +1,38 @@
 # EyeSpySpermatogenesis
 
-Offline Windows desktop app + training pipeline for Phase 1: seminiferous tubule localization (object detection) in TIFF images. Phase 2 stage classification remains in the repo as legacy/future work.
+## Quick Commands
+1. Open .venv: `source .venv/bin/activate` (Windows PowerShell: `.\.venv\Scripts\Activate.ps1`)
+2. Open annotation tool: `python -m src.dataset.annotation_tool`
+3. Default training command:
+   `python -m src.training.seg_train --epochs 30 --batch-size 1 --device cpu --include-yes-only --require-nonempty-annotations --balanced-loss --area-penalty 1`
+4. Default eval command:
+   `python -m src.training.seg_eval --weights models/exported/seg_model.pt --save-viz`
+5. Optional flags to tweak training/eval:
+   Training: `--max-size`, `--val-ratio`, `--allowed-orientations`, `--only-high-quality`,
+   `--use-negative-training`, `--negative-sample-weight`, `--area-penalty`
+   Eval: `--threshold`, `--save-viz`, `--postprocess`, `--pp-min-area-frac`, `--pp-max-components`,
+   `--pp-fill-holes`, `--pp-max-hole-frac`, `--include-yes-only`, `--require-nonempty-annotations`,
+   `--use-negative-training`, `--only-high-quality`
 
-## Quickstart (Phase 1: Detection)
+Offline Windows desktop app + training pipeline for Phase 1: seminiferous tubule segmentation in TIFF images. Phase 2 stage classification remains in the repo as legacy/future work. Legacy box-based detection tooling is still available.
+
+## Quickstart (Phase 1: Segmentation)
 - Create env: `scripts/make_env.sh` (Linux/macOS) or `scripts/make_env.ps1` (Windows). Uses Poetry; Python 3.10+.
 - Index data: place `.tif/.tiff` files under `data/raw/`, then `python -m src.dataset.indexing`.
-- Annotate: `python -m src.dataset.annotation_tool` (draw bounding boxes, save JSON).
-- Train detector: `python -m src.training.detect_train --epochs 5 --batch-size 2 --device cpu`.
-- Evaluate: `python -m src.training.detect_eval --weights models/exported/detector.pt`.
-- Inference CLI: `python -m src.app.inference --weights models/exported/detector.pt data/raw/example.tif`.
+- Annotate polygons: `python -m src.dataset.annotation_tool` (draw one closed polygon per tubule).
+- Train segmenter: `python -m src.training.seg_train --epochs 5 --batch-size 2 --device cpu`.
+- Evaluate: `python -m src.training.seg_eval --weights models/exported/seg_model.pt --save-viz`.
+- Inference CLI: `python -m src.app.inference --task seg --weights models/exported/seg_model.pt data/raw/example.tif --output-mask-dir outputs/masks`.
 - GUI: `python -m src.app.gui`.
 - Build app (Windows): `scripts/build_app.ps1` (one-folder PyInstaller bundle).
 
 ## Repository Layout
 - `data/raw/` raw TIFFs (ignored by git)
 - `data/labels/labels.csv` image-level metadata (tracked)
-- `data/labels/annotations/` per-image box annotations (tracked)
+- `data/labels/annotations/` per-image polygon annotations (tracked)
 - `data/splits/` phase-2 train/val/test CSVs (ignored)
-- `models/exported/detector.pt` exported detector weights (ignored; `.gitkeep` placeholder)
+- `models/exported/seg_model.pt` exported segmentation weights (ignored; `.gitkeep` placeholder)
+- `models/exported/detector.pt` legacy detector weights (ignored; `.gitkeep` placeholder)
 - `models/exported/model.pt` phase-2 classifier weights (ignored; `.gitkeep` placeholder)
 - `src/` Python modules (dataset, training, app)
 - `scripts/` helper scripts
@@ -25,72 +40,124 @@ Offline Windows desktop app + training pipeline for Phase 1: seminiferous tubule
 
 ## Labels and Annotations
 `data/labels/labels.csv` columns:
-`image_id, rel_path, quality, include, notes, labeled_by, labeled_at`
+`image_id, rel_path, quality, include, negative_training, notes, labeled_by, labeled_at`
 
 `stage_cluster` is legacy (Phase 2) and ignored by Phase 1 tooling. If present in an existing CSV, it is preserved but unused.
+`negative_training` is an image-level tag for explicitly marking negative examples (default `no`).
 
-Per-image annotations live under `data/labels/annotations/<image_id>.json`:
+Per-image polygon annotations live under `data/labels/annotations/<image_id>.json`:
 ```json
 {
-  "image_id": "...",
-  "rel_path": "...",
-  "tissue": "testis_tubule",
-  "boxes": [
-    {"box_id": "...", "bbox_xywh": [x, y, w, h], "label": "tubule", "notes": ""}
+  "image_id": "IMG_001",
+  "rel_path": "subdir/IMG_001.tif",
+  "include": "yes|no|unknown",
+  "quality": "high|low|unknown",
+  "tubules": [
+    {
+      "tubule_id": "IMG_001__0",
+      "polygon_xy": [[x1, y1], [x2, y2], [x3, y3]],
+      "orientation": "cross_section|longitudinal|oblique|unknown",
+      "notes": ""
+    }
   ],
-  "labeled_by": "...",
+  "labeled_by": "Adam",
   "labeled_at": "ISO-8601"
 }
 ```
-`bbox_xywh` is always in original image pixel coordinates. Empty `boxes` is allowed (no tubules).
+Polygon points are in original image pixel coordinates. Empty `tubules` is allowed (no tubules or excluded).
+Orientation definitions:
+- `cross_section`: round/near-round tubule cross-sections.
+- `longitudinal`: elongated cuts along the tubule axis.
+- `oblique`: in-between/angled orientations.
+- `unknown`: not sure yet.
 
-## Annotation Tool
+## Annotation Tool (Polygons)
 Launch with `python -m src.dataset.annotation_tool`.
-- Draw box: click + drag on the image.
-- Select box: click in list; delete with Delete key.
-- Redraw: select a box, click “Redraw Selected”, then draw replacement.
-- Save: writes JSON to `data/labels/annotations/` and updates `labels.csv` quality/include metadata.
+- New tubule: click “New tubule”, then left-click to add vertices.
+- Close polygon: right-click or press Enter to close and save that tubule.
+- Backspace removes the last vertex while drawing.
+- Select existing polygon by clicking inside or near a vertex; Delete removes it.
+- Move vertex: click a vertex and drag.
+- Save: writes JSON to `data/labels/annotations/` and updates `labels.csv` include/quality metadata.
+- Use the top tabs to switch between include=yes/unknown and include=no images (kept separate).
 
-## Training (Detection)
-Baseline detector: Faster R-CNN (MobileNetV3 FPN), randomly initialized (no downloads).
+Navigation and metadata:
+- `Prev` / `Next` cycle through images (default filter include!=no).
+- `I` cycles include; `Q` cycles quality.
+- Set per-tubule orientation with the dropdown or press `O` to cycle.
+- Optional args: `--only-unlabeled`, `--include yes|unknown`, `--start <image_id>`.
+
+Legacy `labeling_tool` (stage review UI) is disabled; use the polygon annotation tool for all labeling.
+
+Legacy box tool is still available with `--mode box`.
+
+## Training (Segmentation)
+Baseline model: lightweight U-Net (randomly initialized, no downloads).
 ```bash
-python -m src.training.detect_train --epochs 10 --batch-size 2 --device cpu \
+python -m src.training.seg_train --epochs 10 --batch-size 2 --device cpu \
   --max-size 1024 --val-ratio 0.2 --include-yes-only
 ```
-Key flags:
-- `--only-high-quality` to restrict to `quality=high`.
-- `--include-yes-only` to filter to `include=yes`.
-- `--require-annotations` to enforce JSON presence.
-- `--max-size` to downscale large images for memory.
-
-Exports best weights to `models/exported/detector.pt`.
-
-## Evaluation (Detection)
+Default training command:
 ```bash
-python -m src.training.detect_eval --weights models/exported/detector.pt --save-viz
+python -m src.training.seg_train \
+  --epochs 30 --batch-size 1 --device cpu \
+  --include-yes-only \
+  --require-nonempty-annotations \
+  --balanced-loss \
+  --area-penalty 1
 ```
-Metrics: precision/recall @ IoU 0.5, mean IoU, and count error (predicted vs. true tubule count). Overlays are saved to `outputs/detect_viz/` when `--save-viz` is set.
+Loss: BCEWithLogits + Dice. Targets are union masks of all polygons.
+Use `--allowed-orientations cross_section` to train on cross-section tubules only (default: all).
+Use `--require-nonempty-annotations` to skip images that have zero tubules annotated.
+If the model predicts everything, add `--balanced-loss` to penalize the dominant class.
+If it still collapses to all-tubule, add `--area-penalty 0.5` (tune 0.1–1.0).
+Use `--use-negative-training` to include empty annotations only when `negative_training=yes`.
+Use `--use-negative-training` with `seg_eval` to match the same filter during evaluation.
+If negatives are underrepresented, use `--negative-sample-weight 5` (or higher) to upsample them during training.
+Quality filtering is optional; pass `--only-high-quality` if you want to restrict to quality=high.
 
-## Inference CLI (Detection)
+Exports best weights to `models/exported/seg_model.pt`.
+
+## Evaluation (Segmentation)
 ```bash
-python -m src.app.inference --weights models/exported/detector.pt data/raw/example.tif \
-  --output-json outputs/detect.json --output-csv outputs/detect.csv
+python -m src.training.seg_eval --weights models/exported/seg_model.pt --save-viz
 ```
-Outputs per-image detections with `bbox_xywh` and confidence score.
+Postprocessing is the normal step for segmentation outputs (threshold -> clean small components/holes -> keep top K).
+Default `K=4` matches the typical 2–4 tubules per image.
+Example with postprocessing enabled:
+```bash
+python -m src.training.seg_eval --weights models/exported/seg_model.pt --save-viz --postprocess
+```
+Metrics: Dice, IoU, pixel precision/recall. Overlays are saved to `outputs/seg_viz/` when `--save-viz` is set.
 
-## Desktop GUI (Detection)
+## Inference CLI (Segmentation)
+```bash
+python -m src.app.inference --task seg --weights models/exported/seg_model.pt data/raw/example.tif \
+  --output-mask-dir outputs/masks --output-json outputs/seg_results.json
+```
+Outputs a binary mask PNG per image and JSON with instance boxes + confidence.
+Use `--split-instances` to separate connected tubule regions into per-tubule instances (optionally save a label map with `--output-instance-mask-dir`).
+
+## Desktop GUI (Segmentation)
 Tkinter app: `python -m src.app.gui`
-- Load detector weights (auto-loads `models/exported/detector.pt` if present).
-- Select TIFFs, view box overlays and confidence table.
-- Export detections to JSON/CSV.
+- Load segmentation weights (auto-loads `models/exported/seg_model.pt` if present).
+- Select TIFFs, view mask overlays and instance table.
+- Export masks + JSON/CSV.
 
 ## Packaging (offline, no Python required for end users)
-- After training/export, ensure `models/exported/detector.pt` exists.
+- After training/export, ensure `models/exported/seg_model.pt` exists.
 - Build on Windows with PyInstaller (one-folder bundle includes Python + deps):
 ```powershell
 scripts/build_app.ps1
 ```
 Output: `dist/TubuleDetectorApp/`. Zip that folder and share; users unzip and run `TubuleDetectorApp/gui.exe`.
+
+## Legacy Detection (Phase 1 - Boxes)
+Legacy detector training/eval/inference still exists under:
+- `src/training/detect_train.py`
+- `src/training/detect_eval.py`
+- `src/app/inference.py --task detect`
+- `LegacyDetectorApp` in `src/app/gui.py`
 
 ## Phase 2 (Stage Classification - Legacy)
 Classification code remains under `src/training/train.py`, `src/training/eval.py`, and `src/app/gui.py` (Phase 2 UI). It is not used by default Phase 1 commands.
@@ -99,7 +166,7 @@ Classification code remains under `src/training/train.py`, `src/training/eval.py
 ```bash
 poetry run pytest
 ```
-Tests use synthetic TIFFs and synthetic boxes; no real data required.
+Tests use synthetic TIFFs and synthetic polygons; no real data required.
 
 ## VS Code
-Launch configs are in `.vscode/launch.json` (annotation tool, detector training, GUI).
+Launch configs are in `.vscode/launch.json` (annotation tool, segmentation training, GUI).

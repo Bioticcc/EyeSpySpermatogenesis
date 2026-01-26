@@ -10,15 +10,15 @@
       "console": "integratedTerminal"
     },
     {
-      "name": "Train Detector",
+      "name": "Train Segmenter",
       "type": "python",
       "request": "launch",
-      "module": "src.training.detect_train",
+      "module": "src.training.seg_train",
       "args": ["--epochs", "1", "--batch-size", "1", "--device", "cpu"],
       "console": "integratedTerminal"
     },
     {
-      "name": "Tubule Detector GUI",
+      "name": "Tubule Segmenter GUI",
       "type": "python",
       "request": "launch",
       "module": "src.app.gui",

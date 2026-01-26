@@ -34,11 +34,28 @@ class IncludeFlag(str, Enum):
     UNKNOWN = "unknown"
 
 
+class NegativeTrainingFlag(str, Enum):
+    YES = "yes"
+    NO = "no"
+
+
+class Orientation(str, Enum):
+    CROSS_SECTION = "cross_section"
+    LONGITUDINAL = "longitudinal"
+    OBLIQUE = "oblique"
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def labeled_values(cls) -> List[str]:
+        return [cls.CROSS_SECTION, cls.LONGITUDINAL, cls.OBLIQUE]
+
+
 DEFAULT_LABEL_CSV_COLUMNS = [
     "image_id",
     "rel_path",
     "quality",
     "include",
+    "negative_training",
     "notes",
     "labeled_by",
     "labeled_at",
@@ -50,6 +67,7 @@ LEGACY_LABEL_CSV_COLUMNS = [
     "stage_cluster",
     "quality",
     "include",
+    "negative_training",
     "notes",
     "labeled_by",
     "labeled_at",
@@ -65,6 +83,7 @@ class LabelRecord:
     stage_cluster: StageCluster = StageCluster.UNKNOWN
     quality: Quality = Quality.UNKNOWN
     include: IncludeFlag = IncludeFlag.UNKNOWN
+    negative_training: NegativeTrainingFlag = NegativeTrainingFlag.NO
     notes: str = ""
     labeled_by: str = ""
     labeled_at: str = ""
@@ -74,6 +93,7 @@ class LabelRecord:
         row["stage_cluster"] = self.stage_cluster.value
         row["quality"] = self.quality.value
         row["include"] = self.include.value
+        row["negative_training"] = self.negative_training.value
         return row
 
     @staticmethod
@@ -90,6 +110,11 @@ class LabelRecord:
             stage_cluster=safe_enum(row.get("stage_cluster", StageCluster.UNKNOWN), StageCluster, StageCluster.UNKNOWN),
             quality=safe_enum(row.get("quality", Quality.UNKNOWN), Quality, Quality.UNKNOWN),
             include=safe_enum(row.get("include", IncludeFlag.UNKNOWN), IncludeFlag, IncludeFlag.UNKNOWN),
+            negative_training=safe_enum(
+                row.get("negative_training", NegativeTrainingFlag.NO),
+                NegativeTrainingFlag,
+                NegativeTrainingFlag.NO,
+            ),
             notes=row.get("notes", ""),
             labeled_by=row.get("labeled_by", ""),
             labeled_at=row.get("labeled_at", ""),

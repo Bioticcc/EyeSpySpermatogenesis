@@ -1,4 +1,4 @@
-from src.dataset.schema import LabelRecord, StageCluster, Quality, IncludeFlag
+from src.dataset.schema import LabelRecord, StageCluster, Quality, IncludeFlag, NegativeTrainingFlag
 
 
 def test_stage_cluster_values() -> None:
@@ -19,6 +19,7 @@ def test_label_record_roundtrip() -> None:
         stage_cluster=StageCluster.XI,
         quality=Quality.HIGH,
         include=IncludeFlag.YES,
+        negative_training=NegativeTrainingFlag.YES,
         notes="note",
         labeled_by="tester",
         labeled_at="now",
@@ -29,3 +30,4 @@ def test_label_record_roundtrip() -> None:
     assert loaded.stage_cluster == rec.stage_cluster
     assert loaded.quality == rec.quality
     assert loaded.include == rec.include
+    assert loaded.negative_training == rec.negative_training

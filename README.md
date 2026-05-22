@@ -1,5 +1,7 @@
 # EyeSpySpermatogenesis
 
+# NOTE: Project more or less cancelled, could not find suitable training data. If anyone is interested in contributing training data, id love to continue. Let me know via email if so, and we can work something out.
+
 ## Quick Commands
 1. Open .venv: `source .venv/bin/activate` (Windows PowerShell: `.\.venv\Scripts\Activate.ps1`)
 2. Open annotation tool: `python -m src.dataset.annotation_tool`

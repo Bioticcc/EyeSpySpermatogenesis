@@ -30,7 +30,21 @@ substantially larger than GitHub's reported repository size; Git reported about
 963 MiB of packs plus temporary/duplicate loose objects before automatic packing.
 These objects remain inside `.git`, outside the active project file tree.
 
-Publication and final tree checks are added after the reviewed commit is created.
+The scaffold commit is `38984abe46adfa41dd70f5efc0e552f82bcad189`; its parent is
+the exact legacy head. The active tree contains **28 reviewed files**, including
+all requested module boundaries and 11 documents (nine requested plus migration
+and validation records). No legacy implementation/data/model/output paths remain
+in the active tree. Local documentation links and the owner's original note
+checksum passed checks; representative mixed-case image/model paths are ignored,
+while source data-model modules remain tracked.
+
+**Remote publication is blocked.** GitHub rejected the ordinary main push because
+the current OAuth credential lacks `workflow` scope. SSH fallback also failed
+authentication. Remote main was not modified; the published legacy branch remains
+at the original SHA. No hosted CI run exists for this local scaffold commit.
+Owner authorization and exact safe retry steps are in
+[GIT_MIGRATION.md](GIT_MIGRATION.md#remaining-owner-authorization-publish-main-with-ci).
+The follow-up documentation commit records this blocker; it changes no package code.
 
 ## Scientific and platform limits
 

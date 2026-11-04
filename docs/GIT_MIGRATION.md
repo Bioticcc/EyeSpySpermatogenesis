@@ -62,11 +62,10 @@ Do not commit private files merely to make an archive complete.
 4. Build the replacement scaffold with an empty index, using the original commit
    as the new `main` commit's parent. Keep all old objects/history and the immutable
    archival tip on `legacy`; do not create a `legacy/` directory on main.
-5. Commit only reviewed new project paths, then attempt a **normal fast-forward
-   push** after verification. The local commit succeeded; GitHub rejected the
-   push because the OAuth credential lacks `workflow` scope. Remote main remains
-   at the original SHA. If it advances before retry, stop and reconcile owner work;
-   do not force an update.
+5. Commit only reviewed new project paths, then publish by a **normal fast-forward
+   push** after verification. The initial push required additional OAuth `workflow`
+   permission. After owner-approved authorization, publication succeeded from
+   `4af472c` to `45ddcfa`; remote legacy remained at the exact original head.
 
 An orphan branch was considered and rejected: it would require an unnecessary
 remote-history replacement or branch/default-name migration. A clean active file
@@ -119,41 +118,15 @@ names the original complete tracked snapshot. Future agents must preserve that
 ref. Any future history rewrite or default-branch change requires explicit owner
 approval and a separate reviewed procedure.
 
-## Remaining owner authorization: publish main with CI
+## Publication completed
 
-Local `main` contains the reviewed clean 28-file scaffold. Remote `legacy` exists
-and matches the original SHA; remote `main` still contains the original project.
-The ordinary push was rejected with:
+On 2026-11-04, the owner approved GitHub authorization with the required `workflow`
+scope. The normal command `git push --set-upstream origin main` succeeded,
+publishing `45ddcfa1a06166e4f476e728525e27c0ac5de7e9` and setting local main to
+track origin/main. The clean 28-file scaffold and CI workflow are now published.
+Later documentation commits record this completed migration.
 
-```text
-refusing to allow an OAuth App to create or update workflow
-`.github/workflows/ci.yml` without `workflow` scope
-```
-
-The active GitHub CLI account was verified as Bioticcc; its granted scopes include
-`repo` but not `workflow`. Existing SSH authentication was also tested and returned
-`Permission denied (publickey)`. No credentials or private keys were printed,
-changed or copied. The CI file was retained rather than omitting requested tooling.
-
-The owner must authorize the needed scope (interactive GitHub login may be required):
-
-```bash
-gh auth refresh --hostname github.com --scopes workflow
-```
-
-Then, from this checkout, recheck remote heads and publish without force:
-
-```bash
-git fetch origin
-git log --oneline main..origin/main
-git merge-base --is-ancestor origin/main main
-git push --set-upstream origin main
-```
-
-Proceed with the push only if the log shows no incoming commits and the ancestry
-check succeeds. Inspect and reconcile any new remote work first. After publication,
-verify both remote SHAs, run/inspect the `Scaffold checks` workflow for all three
-Python versions, and update README/validation to record publication. No GitHub
-default-branch change, remote deletion or force-push is required. Alternatively,
-the owner can provide an existing appropriately authorized Git credential through
-their credential manager; never paste tokens into source or chat.
+Remote `legacy` remains `4af472c53beb3810828923ddd252f451374d2a01`. No force-push,
+remote deletion, tag rewrite or default-branch change was performed. No GitHub
+authorization or configuration steps remain for this migration. Hosted CI
+evidence is recorded in [VALIDATION.md](VALIDATION.md).

@@ -10,8 +10,8 @@ models. Confirmed requirements are in
 
 Phase 0 provides plans and a minimal Python scaffold. There is no image-analysis
 implementation, GUI, model installation, or demonstrated scientific performance.
-The clean local main is ready; GitHub publication needs the credential authorization
-described in [GIT_MIGRATION.md](GIT_MIGRATION.md).
+The clean main is published on GitHub, with the original project preserved on
+legacy; see [GIT_MIGRATION.md](GIT_MIGRATION.md).
 
 ## Phases and exit evidence
 

@@ -29,3 +29,4 @@ def test_migrate_adds_orientation(tmp_path: Path) -> None:
 
     loaded = json.loads(path.read_text(encoding="utf-8"))
     assert loaded["tubules"][0]["orientation"] == "unknown"
+    assert loaded["tubules"][0]["partial"] is False

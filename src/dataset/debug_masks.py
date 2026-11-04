@@ -27,6 +27,28 @@ def _blend_mask(image: np.ndarray, mask: np.ndarray, color: tuple[int, int, int]
     return overlay.clip(0, 255).astype(np.uint8)
 
 
+def _mask_outline(mask: np.ndarray) -> np.ndarray:
+    mask_bool = mask.astype(bool)
+    if mask_bool.size == 0 or not mask_bool.any():
+        return mask_bool
+    padded = np.pad(mask_bool, 1, mode="constant", constant_values=False)
+    center = padded[1:-1, 1:-1]
+    neighbors = [
+        padded[:-2, 1:-1],
+        padded[2:, 1:-1],
+        padded[1:-1, :-2],
+        padded[1:-1, 2:],
+        padded[:-2, :-2],
+        padded[:-2, 2:],
+        padded[2:, :-2],
+        padded[2:, 2:],
+    ]
+    interior = neighbors[0].copy()
+    for nb in neighbors[1:]:
+        interior &= nb
+    return center & ~interior
+
+
 def _filter_for_nonempty_annotations(records: List, annotations_dir_path: Path) -> List:
     filtered = []
     missing = 0
@@ -109,8 +131,9 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     for idx in range(len(dataset)):
         record = dataset.records[idx]
-        image, mask = dataset[idx]
-        gt_mask = mask.squeeze(0).numpy().astype(bool)
+        image, mask, neg_mask = dataset[idx]
+        gt_mask = (mask.squeeze(0).numpy() > 0.5)
+        gt_neg_mask = (neg_mask.squeeze(0).numpy() > 0.5)
         gt_pos_frac = float(gt_mask.mean()) if gt_mask.size else 0.0
         logger.info(
             "debug_masks image_id=%s file=%s gt_pos_frac=%.4f",
@@ -120,7 +143,8 @@ def main() -> None:
         )
 
         image_np = (image.permute(1, 2, 0).numpy() * 255.0).clip(0, 255).astype(np.uint8)
-        overlay = _blend_mask(image_np, gt_mask, (0, 255, 0), alpha=0.35)
+        overlay = _blend_mask(image_np, _mask_outline(gt_mask), (0, 255, 0), alpha=0.6)
+        overlay = _blend_mask(overlay, _mask_outline(gt_neg_mask), (0, 0, 255), alpha=0.6)
         out_path = args.out / f"{record.image_id}_gt.png"
         Image.fromarray(overlay).save(out_path)
 

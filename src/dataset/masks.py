@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 from PIL import Image, ImageDraw
+
+from src.dataset.annotations import TubulePolygon
+from src.dataset.schema import Orientation
 
 
 def _sanitize_polygon(polygon_xy: Iterable[Iterable[float]], height: int, width: int) -> List[List[float]]:
@@ -57,6 +60,61 @@ def rasterize_instances(
     for idx, mask in enumerate(masks, start=1):
         instance[mask > 0] = idx
     return instance
+
+
+def split_tubule_polygons(
+    tubules: Sequence[TubulePolygon],
+    allowed_orientations: Optional[set[Orientation]] = None,
+) -> Tuple[List[List[List[float]]], List[List[List[float]]], Dict[str, int]]:
+    counts = {
+        "pos_full_cross_section": 0,
+        "partial_cross_section": 0,
+        "neg_longitudinal": 0,
+        "neg_oblique": 0,
+    }
+    pos_polygons: List[List[List[float]]] = []
+    neg_polygons: List[List[List[float]]] = []
+    for tubule in tubules:
+        if allowed_orientations is not None and tubule.orientation not in allowed_orientations:
+            continue
+        if tubule.orientation == Orientation.CROSS_SECTION:
+            if tubule.partial:
+                counts["partial_cross_section"] += 1
+            else:
+                counts["pos_full_cross_section"] += 1
+            pos_polygons.append(tubule.polygon_xy)
+        elif tubule.orientation == Orientation.LONGITUDINAL:
+            counts["neg_longitudinal"] += 1
+            neg_polygons.append(tubule.polygon_xy)
+        elif tubule.orientation == Orientation.OBLIQUE:
+            counts["neg_oblique"] += 1
+            neg_polygons.append(tubule.polygon_xy)
+    return pos_polygons, neg_polygons, counts
+
+
+def rasterize_tubule_masks(
+    tubules: Sequence[TubulePolygon],
+    height: int,
+    width: int,
+    allowed_orientations: Optional[set[Orientation]] = None,
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, int]]:
+    pos_polygons, neg_polygons, counts = split_tubule_polygons(tubules, allowed_orientations=allowed_orientations)
+    pos_instance = rasterize_instances(pos_polygons, height, width, return_list=False)
+    neg_instance = rasterize_instances(neg_polygons, height, width, return_list=False)
+    pos_mask = (pos_instance > 0).astype(np.uint8)
+    neg_mask = (neg_instance > 0).astype(np.uint8)
+    return pos_mask, neg_mask, counts
+
+
+def resolve_pos_neg_conflicts(pos_mask: np.ndarray, neg_mask: np.ndarray) -> Tuple[np.ndarray, int]:
+    pos = pos_mask.astype(bool)
+    neg = neg_mask.astype(bool)
+    overlap = pos & neg
+    if not overlap.any():
+        return neg_mask, 0
+    neg_fixed = neg_mask.copy()
+    neg_fixed[overlap] = 0
+    return neg_fixed, int(overlap.sum())
 
 
 def _binary_erosion(mask: np.ndarray, iterations: int = 1) -> np.ndarray:

@@ -74,6 +74,7 @@ class TubulePolygon:
     tubule_id: str
     polygon_xy: List[List[float]]
     orientation: Orientation = Orientation.UNKNOWN
+    partial: bool = False
     notes: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
@@ -81,6 +82,7 @@ class TubulePolygon:
             "tubule_id": self.tubule_id,
             "polygon_xy": [[float(x), float(y)] for x, y in self.polygon_xy],
             "orientation": self.orientation.value,
+            "partial": bool(self.partial),
             "notes": self.notes,
         }
 
@@ -101,6 +103,7 @@ class TubulePolygon:
             tubule_id=tubule_id,
             polygon_xy=polygon_xy,
             orientation=orientation,
+            partial=bool(data.get("partial", False)),
             notes=str(data.get("notes", "")),
         )
 

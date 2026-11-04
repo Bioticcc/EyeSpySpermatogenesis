@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import shutil
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -12,6 +14,7 @@ from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from src.dataset.annotations import annotation_path, load_polygon_annotation
 from src.dataset.schema import NegativeTrainingFlag, Orientation
+from src.dataset.masks import split_tubule_polygons
 from src.dataset.seg_dataset import TubuleSegmentationDataset, filter_records, load_label_records
 from src.training.seg_config import DEFAULT_SEG_CONFIG
 from src.training.seg_metrics import dice_coefficient, iou_score, precision_recall
@@ -21,6 +24,23 @@ from src.utils.paths import annotations_dir, labels_dir, raw_data_dir
 from src.utils.seed import set_seed, worker_init_fn
 
 logger = get_logger(__name__)
+
+
+def _archive_exported_model(export_path: Path) -> None:
+    if not export_path.exists():
+        return
+    past_dir = export_path.parent / "past_models"
+    past_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = dt.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    base_name = f"{export_path.stem}_{timestamp}{export_path.suffix}"
+    dest = past_dir / base_name
+    counter = 1
+    while dest.exists():
+        dest = past_dir / f"{export_path.stem}_{timestamp}_{counter}{export_path.suffix}"
+        counter += 1
+    shutil.copy2(export_path, dest)
+    logger.info("Archived exported model to %s", dest)
+
 
 
 def split_records(records: List, val_ratio: float, seed: int) -> Tuple[List, List]:
@@ -35,8 +55,10 @@ def split_records(records: List, val_ratio: float, seed: int) -> Tuple[List, Lis
 def filter_for_annotations(
     records: List,
     annotations_dir_path: Path,
-    require_nonempty: bool,
+    require_positive: bool,
+    require_any: bool,
     allow_negative_training: bool,
+    allowed_orientations: Optional[set[Orientation]] = None,
 ) -> List:
     filtered = []
     missing = 0
@@ -47,12 +69,20 @@ def filter_for_annotations(
         if not ann_path.exists():
             missing += 1
             continue
-        if require_nonempty or allow_negative_training:
+        if require_positive or require_any or allow_negative_training:
             ann = load_polygon_annotation(ann_path)
             if ann is None:
                 missing += 1
                 continue
-            if not ann.tubules:
+            if require_any and not ann.tubules:
+                empty += 1
+                continue
+            pos_polygons, _, counts = split_tubule_polygons(
+                ann.tubules,
+                allowed_orientations=allowed_orientations,
+            )
+            has_positive = counts["pos_full_cross_section"] > 0 and len(pos_polygons) > 0
+            if not has_positive:
                 if allow_negative_training and record.negative_training.value == "yes":
                     empty_negative += 1
                 else:
@@ -60,11 +90,17 @@ def filter_for_annotations(
                     continue
         filtered.append(record)
     if missing or empty:
-        if require_nonempty or allow_negative_training:
+        if require_positive or require_any or allow_negative_training:
+            reason = "without required annotations"
+            if require_positive:
+                reason = "without positive annotations"
+            elif require_any:
+                reason = "without any tubule annotations"
             logger.warning(
-                "Skipped %d record(s) without polygon annotations and %d with empty annotations.",
+                "Skipped %d record(s) without polygon annotations and %d %s.",
                 missing,
                 empty,
+                reason,
             )
         else:
             logger.warning("Skipped %d record(s) without polygon annotations.", missing)
@@ -102,14 +138,22 @@ def masked_bce_with_logits(
     logits: torch.Tensor,
     targets: torch.Tensor,
     valid_mask: torch.Tensor | None = None,
+    weight_map: torch.Tensor | None = None,
 ) -> torch.Tensor:
     targets = targets.float()
-    if valid_mask is None:
-        return F.binary_cross_entropy_with_logits(logits, targets)
-    valid = valid_mask.float()
     loss = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+    if weight_map is not None:
+        loss = loss * weight_map
+    if valid_mask is None:
+        if weight_map is None:
+            return loss.mean()
+        denom = weight_map.sum()
+        if denom.item() <= 0:
+            return torch.tensor(0.0, device=logits.device)
+        return loss.sum() / denom
+    valid = valid_mask.float()
     loss = loss * valid
-    denom = valid.sum()
+    denom = valid.sum() if weight_map is None else (valid * weight_map).sum()
     if denom.item() <= 0:
         return torch.tensor(0.0, device=logits.device)
     return loss.sum() / denom
@@ -120,35 +164,37 @@ def balanced_bce_with_logits(
     targets: torch.Tensor,
     eps: float = 1e-6,
     valid_mask: torch.Tensor | None = None,
+    weight_map: torch.Tensor | None = None,
 ) -> torch.Tensor:
     targets = targets.float()
-    if valid_mask is None:
-        pos = targets.sum()
-        neg = targets.numel() - pos
-        if pos.item() <= 0 or neg.item() <= 0:
-            return F.binary_cross_entropy_with_logits(logits, targets)
-        pos_weight = neg / (pos + eps)
-        neg_weight = pos / (neg + eps)
-        weights = torch.where(targets > 0.5, pos_weight, neg_weight)
-        return F.binary_cross_entropy_with_logits(logits, targets, weight=weights)
-    valid = valid_mask.float()
+    valid = valid_mask.float() if valid_mask is not None else torch.ones_like(targets)
     pos = (targets * valid).sum()
     neg = valid.sum() - pos
     if pos.item() <= 0 or neg.item() <= 0:
-        return masked_bce_with_logits(logits, targets, valid_mask=valid_mask)
+        return masked_bce_with_logits(logits, targets, valid_mask=valid_mask, weight_map=weight_map)
     pos_weight = neg / (pos + eps)
     neg_weight = pos / (neg + eps)
-    weights = torch.where(targets > 0.5, pos_weight, neg_weight) * valid
-    loss = F.binary_cross_entropy_with_logits(logits, targets, weight=weights, reduction="sum")
-    return loss / valid.sum().clamp_min(1.0)
-    pos = targets.sum()
-    neg = targets.numel() - pos
-    if pos.item() <= 0 or neg.item() <= 0:
-        return F.binary_cross_entropy_with_logits(logits, targets)
-    pos_weight = neg / (pos + eps)
-    neg_weight = pos / (neg + eps)
-    weights = torch.where(targets > 0.5, pos_weight, neg_weight)
-    return F.binary_cross_entropy_with_logits(logits, targets, weight=weights)
+    class_weights = torch.where(targets > 0.5, pos_weight, neg_weight)
+    if weight_map is None:
+        weight_map = class_weights
+    else:
+        weight_map = weight_map * class_weights
+    return masked_bce_with_logits(logits, targets, valid_mask=valid_mask, weight_map=weight_map)
+
+
+def build_loss_weight_map(
+    targets: torch.Tensor,
+    neg_mask: torch.Tensor,
+    bg_weight: float,
+    neg_tubule_weight: float,
+) -> torch.Tensor:
+    weight_map = torch.full_like(targets, float(bg_weight))
+    if neg_mask is not None:
+        neg_weight = torch.tensor(float(neg_tubule_weight), device=targets.device)
+        weight_map = torch.where(neg_mask.bool(), neg_weight, weight_map)
+    pos_weight = torch.tensor(1.0, device=targets.device)
+    weight_map = torch.where(targets > 0.5, pos_weight, weight_map)
+    return weight_map
 
 
 def area_penalty(
@@ -181,7 +227,7 @@ def evaluate_on_loader(
     precision_scores: List[float] = []
     recall_scores: List[float] = []
     with torch.no_grad():
-        for images, masks in loader:
+        for images, masks, _neg_masks in loader:
             images = images.to(device)
             masks = masks.to(device)
             logits = model(images)
@@ -251,7 +297,19 @@ def parse_args() -> argparse.Namespace:
         "--require-nonempty-annotations",
         action=argparse.BooleanOptionalAction,
         default=False,
-        help="Require at least one tubule in each annotation",
+        help="Require at least one positive (full cross-section) tubule in each annotation",
+    )
+    parser.add_argument(
+        "--require-positive-annotations",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Require at least one positive (full cross-section) tubule in each annotation",
+    )
+    parser.add_argument(
+        "--require-any-annotations",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Require at least one tubule polygon (positive or negative) in each annotation",
     )
     parser.add_argument(
         "--use-negative-training",
@@ -297,6 +355,18 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="Upsample negative_training=yes records in training (1 disables)",
     )
+    parser.add_argument(
+        "--neg-tubule-weight",
+        type=float,
+        default=2.0,
+        help="Pixel weight for negative tubule masks in BCE loss",
+    )
+    parser.add_argument(
+        "--bg-weight",
+        type=float,
+        default=1.0,
+        help="Pixel weight for background pixels in BCE loss",
+    )
     return parser.parse_args()
 
 
@@ -307,12 +377,17 @@ def main() -> None:
 
     records = load_label_records(args.labels_path)
     records = filter_records(records, include_yes_only=args.include_yes_only, only_high_quality=args.only_high_quality)
-    if args.require_annotations or args.require_nonempty_annotations or args.use_negative_training:
+    allowed_orientations = TubuleSegmentationDataset._normalize_orientations(args.allowed_orientations)
+    require_positive = args.require_positive_annotations or args.require_nonempty_annotations
+    require_any = args.require_any_annotations
+    if args.require_annotations or require_positive or require_any or args.use_negative_training:
         records = filter_for_annotations(
             records,
             args.annotations_dir,
-            require_nonempty=args.require_nonempty_annotations,
+            require_positive=require_positive,
+            require_any=require_any,
             allow_negative_training=args.use_negative_training,
+            allowed_orientations=allowed_orientations,
         )
     if not records:
         logger.warning("No records available after filtering. Check labels.csv and annotations.")
@@ -335,6 +410,7 @@ def main() -> None:
         ignore_band_px=args.ignore_band_px,
         ignore_band_frac=args.ignore_band_frac,
     )
+    train_stats = train_ds.summarize(name="train")
     val_ds = TubuleSegmentationDataset(
         val_records,
         args.raw_dir,
@@ -347,6 +423,8 @@ def main() -> None:
         ignore_band_px=args.ignore_band_px,
         ignore_band_frac=args.ignore_band_frac,
     )
+    if val_records:
+        val_ds.summarize(name="val")
 
     sampler = None
     if args.negative_sample_weight > 1.0:
@@ -396,18 +474,29 @@ def main() -> None:
     for epoch in range(args.epochs):
         model.train()
         losses = []
-        for images, masks in train_loader:
+        epoch_pos_fracs: List[float] = []
+        epoch_neg_fracs: List[float] = []
+        epoch_bg_fracs: List[float] = []
+        epoch_ignore_fracs: List[float] = []
+        for images, masks, neg_masks in train_loader:
             images = images.to(device)
             masks = masks.to(device)
+            neg_masks = neg_masks.to(device)
             pos_frac = float((masks == 1).float().mean().item()) if masks.numel() else 0.0
             ignore_frac = float((masks == -1).float().mean().item()) if masks.numel() else 0.0
-            neg_frac = float((masks == 0).float().mean().item()) if masks.numel() else 0.0
+            neg_tubule_frac = float((neg_masks > 0.5).float().mean().item()) if masks.numel() else 0.0
+            bg_frac = max(0.0, 1.0 - pos_frac - ignore_frac - neg_tubule_frac)
             logger.info(
-                "batch_mask_fracs pos=%.4f ignore=%.4f neg=%.4f",
+                "batch_mask_fracs pos=%.4f neg_tubule=%.4f bg=%.4f ignore=%.4f",
                 pos_frac,
+                neg_tubule_frac,
+                bg_frac,
                 ignore_frac,
-                neg_frac,
             )
+            epoch_pos_fracs.append(pos_frac)
+            epoch_neg_fracs.append(neg_tubule_frac)
+            epoch_bg_fracs.append(bg_frac)
+            epoch_ignore_fracs.append(ignore_frac)
             if pos_frac > 0.95:
                 high_gt_streak += 1
                 if (high_gt_streak >= 2 or train_loader_len == 1) and not high_gt_warned:
@@ -422,13 +511,20 @@ def main() -> None:
             if valid_mask.sum().item() == 0:
                 logger.warning("Skipping batch with no valid pixels (all ignored).")
                 continue
+            neg_mask = (neg_masks > 0.5) & valid_mask
+            weight_map = build_loss_weight_map(
+                targets,
+                neg_mask=neg_mask,
+                bg_weight=args.bg_weight,
+                neg_tubule_weight=args.neg_tubule_weight,
+            )
             valid_frac = float(valid_mask.float().mean().item()) if masks.numel() else 0.0
             if valid_frac < 0.01:
                 logger.warning("Low valid pixel fraction (%.4f); loss may be unstable.", valid_frac)
             if args.balanced_loss:
-                bce = balanced_bce_with_logits(logits, targets, valid_mask=valid_mask)
+                bce = balanced_bce_with_logits(logits, targets, valid_mask=valid_mask, weight_map=weight_map)
             else:
-                bce = masked_bce_with_logits(logits, targets, valid_mask=valid_mask)
+                bce = masked_bce_with_logits(logits, targets, valid_mask=valid_mask, weight_map=weight_map)
             dloss = dice_loss(logits, targets, valid_mask=valid_mask)
             loss = bce + dloss
             if args.area_penalty > 0:
@@ -439,6 +535,42 @@ def main() -> None:
             optimizer.step()
             losses.append(loss.item())
         avg_loss = float(np.mean(losses)) if losses else 0.0
+        if epoch_pos_fracs:
+            pos_arr = np.array(epoch_pos_fracs)
+            neg_arr = np.array(epoch_neg_fracs)
+            bg_arr = np.array(epoch_bg_fracs)
+            ignore_arr = np.array(epoch_ignore_fracs)
+            logger.info(
+                "epoch_mask_fracs mean pos=%.4f neg_tubule=%.4f bg=%.4f ignore=%.4f",
+                float(pos_arr.mean()),
+                float(neg_arr.mean()),
+                float(bg_arr.mean()),
+                float(ignore_arr.mean()),
+            )
+            logger.info(
+                "epoch_mask_fracs median pos=%.4f neg_tubule=%.4f bg=%.4f ignore=%.4f",
+                float(np.median(pos_arr)),
+                float(np.median(neg_arr)),
+                float(np.median(bg_arr)),
+                float(np.median(ignore_arr)),
+            )
+            logger.info(
+                "epoch_mask_counts images=%d pos_full_cross_section=%d partial_cross_section=%d "
+                "neg_longitudinal=%d neg_oblique=%d",
+                train_stats.get("num_images", 0),
+                train_stats["counts"]["pos_full_cross_section"],
+                train_stats["counts"]["partial_cross_section"],
+                train_stats["counts"]["neg_longitudinal"],
+                train_stats["counts"]["neg_oblique"],
+            )
+            near_zero = (pos_arr < 1e-4).sum()
+            if near_zero >= max(3, int(0.3 * len(pos_arr))):
+                logger.warning(
+                    "Epoch %d: %d/%d batches have near-zero pos_frac (<1e-4).",
+                    epoch + 1,
+                    int(near_zero),
+                    len(pos_arr),
+                )
 
         if val_records:
             dice, iou, precision, recall = evaluate_on_loader(
@@ -470,6 +602,7 @@ def main() -> None:
         args.export_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(torch.load(best_path, map_location="cpu")["state_dict"], args.export_path)
         logger.info("Exported best model to %s", args.export_path)
+        _archive_exported_model(args.export_path)
     else:
         logger.info("Training finished; no best checkpoint saved.")
 

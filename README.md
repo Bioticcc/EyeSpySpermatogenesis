@@ -11,7 +11,8 @@
    `python -m src.training.seg_eval --weights models/exported/seg_model.pt --save-viz`
 5. Optional flags to tweak training/eval:
    Training: `--max-size`, `--val-ratio`, `--allowed-orientations`, `--only-high-quality`,
-   `--use-negative-training`, `--negative-sample-weight`, `--area-penalty`
+   `--use-negative-training`, `--negative-sample-weight`, `--area-penalty`,
+   `--neg-tubule-weight`, `--bg-weight`, `--require-positive-annotations`, `--require-any-annotations`
    Eval: `--threshold`, `--save-viz`, `--postprocess`, `--pp-min-area-frac`, `--pp-max-components`,
    `--pp-fill-holes`, `--pp-max-hole-frac`, `--include-yes-only`, `--require-nonempty-annotations`,
    `--use-negative-training`, `--only-high-quality`
@@ -29,13 +30,13 @@ Offline Windows desktop app + training pipeline for Phase 1: seminiferous tubule
 - Build app (Windows): `scripts/build_app.ps1` (one-folder PyInstaller bundle).
 
 ## Repository Layout
-- `data/raw/` raw TIFFs (ignored by git)
+- `data/raw/` raw TIFFs (tracked for moving the project between machines)
 - `data/labels/labels.csv` image-level metadata (tracked)
 - `data/labels/annotations/` per-image polygon annotations (tracked)
 - `data/splits/` phase-2 train/val/test CSVs (ignored)
-- `models/exported/seg_model.pt` exported segmentation weights (ignored; `.gitkeep` placeholder)
-- `models/exported/detector.pt` legacy detector weights (ignored; `.gitkeep` placeholder)
-- `models/exported/model.pt` phase-2 classifier weights (ignored; `.gitkeep` placeholder)
+- `models/exported/seg_model.pt` exported segmentation weights (tracked)
+- `models/exported/detector.pt` legacy detector weights, if present
+- `models/exported/model.pt` phase-2 classifier weights, if present
 - `src/` Python modules (dataset, training, app)
 - `scripts/` helper scripts
 - `tests/` lightweight pytest checks (synthetic TIFFs)
@@ -59,6 +60,7 @@ Per-image polygon annotations live under `data/labels/annotations/<image_id>.jso
       "tubule_id": "IMG_001__0",
       "polygon_xy": [[x1, y1], [x2, y2], [x3, y3]],
       "orientation": "cross_section|longitudinal|oblique|unknown",
+      "partial": false,
       "notes": ""
     }
   ],
@@ -72,6 +74,7 @@ Orientation definitions:
 - `longitudinal`: elongated cuts along the tubule axis.
 - `oblique`: in-between/angled orientations.
 - `unknown`: not sure yet.
+`partial=true` marks cropped/incomplete cross-sections (currently treated as positives in training).
 
 ## Annotation Tool (Polygons)
 Launch with `python -m src.dataset.annotation_tool`.
@@ -87,6 +90,7 @@ Navigation and metadata:
 - `Prev` / `Next` cycle through images (default filter include!=no).
 - `I` cycles include; `Q` cycles quality.
 - Set per-tubule orientation with the dropdown or press `O` to cycle.
+- Toggle partial on the selected tubule with `P` (outline turns orange + “PARTIAL” label).
 - Optional args: `--only-unlabeled`, `--include yes|unknown`, `--start <image_id>`.
 
 Legacy `labeling_tool` (stage review UI) is disabled; use the polygon annotation tool for all labeling.
@@ -108,17 +112,22 @@ python -m src.training.seg_train \
   --balanced-loss \
   --area-penalty 1
 ```
-Loss: BCEWithLogits + Dice. Targets are union masks of all polygons.
-Use `--allowed-orientations cross_section` to train on cross-section tubules only (default: all).
-Use `--require-nonempty-annotations` to skip images that have zero tubules annotated.
+Loss: BCEWithLogits + Dice. Targets use cross-section tubules (full + partial) as positives; longitudinal/oblique are explicit negatives.
+Use `--allowed-orientations cross_section` to ignore longitudinal/oblique polygons (default: all).
+Use `--require-nonempty-annotations` to skip images that have zero positive tubules annotated.
+`--require-positive-annotations` (default true) enforces this even if `--require-nonempty-annotations` is false.
+Use `--require-any-annotations` (default true) to require at least one tubule polygon (positive or negative).
 If the model predicts everything, add `--balanced-loss` to penalize the dominant class.
 If it still collapses to all-tubule, add `--area-penalty 0.5` (tune 0.1–1.0).
 Use `--use-negative-training` to include empty annotations only when `negative_training=yes`.
 Use `--use-negative-training` with `seg_eval` to match the same filter during evaluation.
 If negatives are underrepresented, use `--negative-sample-weight 5` (or higher) to upsample them during training.
+Use `--neg-tubule-weight` to upweight negative tubule pixels vs background (default 2.0).
+Use `--bg-weight` to adjust background weighting (default 1.0).
 Quality filtering is optional; pass `--only-high-quality` if you want to restrict to quality=high.
 
 Exports best weights to `models/exported/seg_model.pt`.
+Each completed training run also archives the exported model to `models/exported/past_models/` with a UTC timestamp in the filename.
 
 ## Evaluation (Segmentation)
 ```bash
@@ -130,7 +139,8 @@ Example with postprocessing enabled:
 ```bash
 python -m src.training.seg_eval --weights models/exported/seg_model.pt --save-viz --postprocess
 ```
-Metrics: Dice, IoU, pixel precision/recall. Overlays are saved to `outputs/seg_viz/` when `--save-viz` is set.
+Metrics: Dice, IoU, pixel precision/recall (computed on positive tubules only). Overlays are saved to `outputs/seg_viz/` when `--save-viz` is set.
+Overlays: GT positive outline (green), GT negative tubules (blue), prediction outline (red).
 
 ## Inference CLI (Segmentation)
 ```bash

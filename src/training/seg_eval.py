@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 
 from src.dataset.annotations import annotation_path, load_polygon_annotation
 from src.dataset.schema import Orientation
+from src.dataset.masks import split_tubule_polygons
 from src.dataset.seg_dataset import TubuleSegmentationDataset, filter_records, load_label_records
 from src.training.seg_config import DEFAULT_SEG_CONFIG
 from src.training.seg_metrics import dice_coefficient, iou_score, precision_recall
@@ -24,8 +25,10 @@ logger = get_logger(__name__)
 def filter_for_annotations(
     records: List,
     annotations_dir_path: Path,
-    require_nonempty: bool,
+    require_positive: bool,
+    require_any: bool,
     allow_negative_training: bool,
+    allowed_orientations: Optional[set[Orientation]] = None,
 ) -> List:
     filtered = []
     missing = 0
@@ -36,12 +39,20 @@ def filter_for_annotations(
         if not ann_path.exists():
             missing += 1
             continue
-        if require_nonempty or allow_negative_training:
+        if require_positive or require_any or allow_negative_training:
             ann = load_polygon_annotation(ann_path)
             if ann is None:
                 missing += 1
                 continue
-            if not ann.tubules:
+            if require_any and not ann.tubules:
+                empty += 1
+                continue
+            _, _, counts = split_tubule_polygons(
+                ann.tubules,
+                allowed_orientations=allowed_orientations,
+            )
+            has_positive = counts["pos_full_cross_section"] > 0
+            if not has_positive:
                 if allow_negative_training and record.negative_training.value == "yes":
                     empty_negative += 1
                 else:
@@ -49,11 +60,17 @@ def filter_for_annotations(
                     continue
         filtered.append(record)
     if missing or empty:
-        if require_nonempty or allow_negative_training:
+        if require_positive or require_any or allow_negative_training:
+            reason = "without required annotations"
+            if require_positive:
+                reason = "without positive annotations"
+            elif require_any:
+                reason = "without any tubule annotations"
             logger.warning(
-                "Skipped %d record(s) without polygon annotations and %d with empty annotations.",
+                "Skipped %d record(s) without polygon annotations and %d %s.",
                 missing,
                 empty,
+                reason,
             )
         else:
             logger.warning("Skipped %d record(s) without polygon annotations.", missing)
@@ -69,6 +86,7 @@ def _blend_mask(image: np.ndarray, mask: np.ndarray, color: Tuple[int, int, int]
     color_arr = np.array(color, dtype=np.float32)
     overlay[mask] = overlay[mask] * (1.0 - alpha) + color_arr * alpha
     return overlay.clip(0, 255).astype(np.uint8)
+
 
 def _draw_component_boxes(image: np.ndarray, components: Optional[List[dict]]) -> np.ndarray:
     if not components:
@@ -95,12 +113,15 @@ def _draw_component_boxes(image: np.ndarray, components: Optional[List[dict]]) -
 def save_mask_overlay(
     image: np.ndarray,
     gt_mask: np.ndarray,
+    gt_neg_mask: Optional[np.ndarray],
     pred_mask: np.ndarray,
     path: Path,
     components: Optional[List[dict]] = None,
     alpha: float = 0.35,
 ) -> None:
     overlay = _blend_mask(image, gt_mask, (0, 255, 0), alpha)
+    if gt_neg_mask is not None:
+        overlay = _blend_mask(overlay, gt_neg_mask, (0, 0, 255), alpha)
     overlay = _blend_mask(overlay, pred_mask, (255, 0, 0), alpha)
     overlay = _draw_component_boxes(overlay, components)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,6 +152,7 @@ def evaluate_on_loader(
     iou_scores: List[float] = []
     precision_scores: List[float] = []
     recall_scores: List[float] = []
+    neg_fp_rates: List[float] = []
     gt_pos_fracs: List[float] = []
     pred_pos_fracs: List[float] = []
     pred_pos_fracs_pre: List[float] = []
@@ -139,13 +161,15 @@ def evaluate_on_loader(
     saved = 0
     dataset_idx = 0
     with torch.no_grad():
-        for images, masks in loader:
+        for images, masks, neg_masks in loader:
             images = images.to(device)
             masks = masks.to(device)
+            neg_masks = neg_masks.to(device)
             logits = model(images)
             probs = torch.sigmoid(logits).cpu()
             preds = probs >= (threshold_for_post if postprocess_enabled else threshold)
             targets = masks.cpu()
+            neg_targets = neg_masks.cpu()
             targets_bin = (targets > 0.5).float()
             valid_mask = targets != -1 if metrics_ignore else None
             if postprocess_enabled:
@@ -192,6 +216,7 @@ def evaluate_on_loader(
                 filename = record.rel_path if record else "unknown"
 
                 gt_mask = targets_bin[idx].squeeze(0).numpy().astype(bool)
+                gt_neg_mask = neg_targets[idx].squeeze(0).numpy().astype(bool)
                 pred_mask_pre = preds[idx].squeeze(0).numpy().astype(bool)
                 pred_mask_post = preds_post[idx].squeeze(0).numpy().astype(bool)
                 prob_map = probs[idx].squeeze(0).numpy()
@@ -207,6 +232,9 @@ def evaluate_on_loader(
                 gt_pos_fracs.append(gt_pos_frac)
                 pred_pos_fracs_pre.append(pred_pos_frac_pre)
                 pred_pos_fracs.append(pred_pos_frac_post)
+                if gt_neg_mask.any():
+                    neg_fp_rate = float((pred_mask_post & gt_neg_mask).sum() / max(gt_neg_mask.sum(), 1))
+                    neg_fp_rates.append(neg_fp_rate)
 
                 if postprocess_enabled:
                     logger.info(
@@ -240,10 +268,17 @@ def evaluate_on_loader(
                     image_np = (images[idx].cpu().permute(1, 2, 0).numpy() * 255.0).clip(0, 255).astype(np.uint8)
                     base_path = viz_dir / f"seg_viz_{saved:03d}_{image_id}"
                     raw_path = base_path.with_name(f"{base_path.name}_raw.png")
-                    save_mask_overlay(image_np, gt_mask, pred_mask_pre, raw_path)
+                    save_mask_overlay(image_np, gt_mask, gt_neg_mask, pred_mask_pre, raw_path)
                     if postprocess_enabled:
                         post_path = base_path.with_name(f"{base_path.name}_post.png")
-                        save_mask_overlay(image_np, gt_mask, pred_mask_post, post_path, components=components)
+                        save_mask_overlay(
+                            image_np,
+                            gt_mask,
+                            gt_neg_mask,
+                            pred_mask_post,
+                            post_path,
+                            components=components,
+                        )
                     saved += 1
 
     if not gt_pos_fracs:
@@ -282,6 +317,13 @@ def evaluate_on_loader(
         "seg_eval summary gt_pos_frac>0.95 count=%d",
         int((gt_array > 0.95).sum()),
     )
+    if neg_fp_rates:
+        neg_fp_arr = np.array(neg_fp_rates)
+        logger.info(
+            "seg_eval summary neg_tubule_fp_rate mean=%.4f median=%.4f",
+            float(neg_fp_arr.mean()),
+            float(np.median(neg_fp_arr)),
+        )
 
     return (
         float(np.mean(dice_scores)),
@@ -330,7 +372,13 @@ def parse_args() -> argparse.Namespace:
         "--require-nonempty-annotations",
         action=argparse.BooleanOptionalAction,
         default=False,
-        help="Require at least one tubule in each annotation",
+        help="Require at least one positive (full cross-section) tubule in each annotation",
+    )
+    parser.add_argument(
+        "--require-any-annotations",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Require at least one tubule polygon (positive or negative) in each annotation",
     )
     parser.add_argument(
         "--use-negative-training",
@@ -405,12 +453,17 @@ def main() -> None:
 
     records = load_label_records(args.labels_path)
     records = filter_records(records, include_yes_only=args.include_yes_only, only_high_quality=args.only_high_quality)
-    if args.require_annotations or args.require_nonempty_annotations or args.use_negative_training:
+    allowed_orientations = TubuleSegmentationDataset._normalize_orientations(args.allowed_orientations)
+    require_positive = args.require_nonempty_annotations
+    require_any = args.require_any_annotations
+    if args.require_annotations or require_positive or require_any or args.use_negative_training:
         records = filter_for_annotations(
             records,
             args.annotations_dir,
-            require_nonempty=args.require_nonempty_annotations,
+            require_positive=require_positive,
+            require_any=require_any,
             allow_negative_training=args.use_negative_training,
+            allowed_orientations=allowed_orientations,
         )
     if not records:
         logger.warning("No records available after filtering. Check labels.csv and annotations.")

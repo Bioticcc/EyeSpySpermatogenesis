@@ -43,6 +43,7 @@ def test_polygon_annotation_roundtrip(tmp_path: Path) -> None:
                 tubule_id="t1",
                 polygon_xy=[[1, 2], [3, 2], [3, 4]],
                 orientation=Orientation.CROSS_SECTION,
+                partial=True,
                 notes="",
             )
         ],
@@ -58,6 +59,7 @@ def test_polygon_annotation_roundtrip(tmp_path: Path) -> None:
     assert loaded.quality == ann.quality
     assert loaded.tubules[0].polygon_xy == ann.tubules[0].polygon_xy
     assert loaded.tubules[0].orientation == ann.tubules[0].orientation
+    assert loaded.tubules[0].partial == ann.tubules[0].partial
 
 
 def test_polygon_annotation_defaults_orientation(tmp_path: Path) -> None:
@@ -79,6 +81,7 @@ def test_polygon_annotation_defaults_orientation(tmp_path: Path) -> None:
     loaded = load_polygon_annotation(path)
     assert loaded is not None
     assert loaded.tubules[0].orientation == Orientation.UNKNOWN
+    assert loaded.tubules[0].partial is False
 
 
 def test_polygon_annotation_rejects_invalid_orientation(tmp_path: Path) -> None:

@@ -21,7 +21,9 @@ The previous polygon-supervised U-Net experiments did not establish satisfactory
 performance. Their code and history are preserved on `legacy`; they are a possible
 benchmark, not the new architecture. New `main` replaces the active file tree
 while retaining Git ancestry, allowing publication without a history rewrite.
-Remote publication details are in [the migration record](docs/GIT_MIGRATION.md).
+**The reset is currently local:** GitHub `legacy` is preserved, but publication of
+new `main` is blocked by the credential's missing `workflow` scope. Exact remaining
+steps are in [the migration record](docs/GIT_MIGRATION.md).
 
 ## Planned inputs and workflow
 

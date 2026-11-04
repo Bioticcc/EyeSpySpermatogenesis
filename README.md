@@ -1,184 +1,97 @@
 # EyeSpySpermatogenesis
 
-# NOTE: Project now in developement once more! WIll try integrating the EyeSpySC and SCP algorithms into this, and see if that improves things.
+A new foundation for reproducible, preferably offline analysis of **mouse testis
+histology: PAS staining, FFPE preparation, and native 40× analysis detail**.
 
-## Quick Commands
-1. Open .venv: `source .venv/bin/activate` (Windows PowerShell: `.\.venv\Scripts\Activate.ps1`)
-2. Open annotation tool: `python -m src.dataset.annotation_tool`
-3. Default training command:
-   `python -m src.training.seg_train --epochs 30 --batch-size 1 --device cpu --include-yes-only --require-nonempty-annotations --balanced-loss --area-penalty 1`
-4. Default eval command:
-   `python -m src.training.seg_eval --weights models/exported/seg_model.pt --save-viz`
-5. Optional flags to tweak training/eval:
-   Training: `--max-size`, `--val-ratio`, `--allowed-orientations`, `--only-high-quality`,
-   `--use-negative-training`, `--negative-sample-weight`, `--area-penalty`,
-   `--neg-tubule-weight`, `--bg-weight`, `--require-positive-annotations`, `--require-any-annotations`
-   Eval: `--threshold`, `--save-viz`, `--postprocess`, `--pp-min-area-frac`, `--pp-max-components`,
-   `--pp-fill-holes`, `--pp-max-hole-frac`, `--include-yes-only`, `--require-nonempty-annotations`,
-   `--use-negative-training`, `--only-high-quality`
+The project has two separate objectives:
 
-Offline Windows desktop app + training pipeline for Phase 1: seminiferous tubule segmentation in TIFF images. Phase 2 stage classification remains in the repo as legacy/future work. Legacy box-based detection tooling is still available.
+1. **Tubule isolation:** locate individual seminiferous tubules and export complete
+   crops, masks, quality information, and source coordinates.
+2. **Epithelial staging:** assess suitable isolated tubules, preserving uncertainty
+   instead of forcing a stage assignment.
 
-## Quickstart (Phase 1: Segmentation)
-- Create env: `scripts/make_env.sh` (Linux/macOS) or `scripts/make_env.ps1` (Windows). Uses Poetry; Python 3.10+.
-- Index data: place `.tif/.tiff` files under `data/raw/`, then `python -m src.dataset.indexing`.
-- Annotate polygons: `python -m src.dataset.annotation_tool` (draw one closed polygon per tubule).
-- Train segmenter: `python -m src.training.seg_train --epochs 5 --batch-size 2 --device cpu`.
-- Evaluate: `python -m src.training.seg_eval --weights models/exported/seg_model.pt --save-viz`.
-- Inference CLI: `python -m src.app.inference --task seg --weights models/exported/seg_model.pt data/raw/example.tif --output-mask-dir outputs/masks`.
-- GUI: `python -m src.app.gui`.
-- Build app (Windows): `scripts/build_app.ps1` (one-folder PyInstaller bundle).
+## Current status
 
-## Repository Layout
-- `data/raw/` raw TIFFs (tracked for moving the project between machines)
-- `data/labels/labels.csv` image-level metadata (tracked)
-- `data/labels/annotations/` per-image polygon annotations (tracked)
-- `data/splits/` phase-2 train/val/test CSVs (ignored)
-- `models/exported/seg_model.pt` exported segmentation weights (tracked)
-- `models/exported/detector.pt` legacy detector weights, if present
-- `models/exported/model.pt` phase-2 classifier weights, if present
-- `src/` Python modules (dataset, training, app)
-- `scripts/` helper scripts
-- `tests/` lightweight pytest checks (synthetic TIFFs)
+**Phase 0: repository reset, software investigation, and prototype planning.** This
+repository contains documentation, empty package modules, and development checks.
+OME-TIFF ingestion, cropping, segmentation, staging, and a GUI are **not
+implemented**. No representative new-project images have been characterized.
 
-## Labels and Annotations
-`data/labels/labels.csv` columns:
-`image_id, rel_path, quality, include, negative_training, notes, labeled_by, labeled_at`
+The previous polygon-supervised U-Net experiments did not establish satisfactory
+performance. Their code and history are preserved on `legacy`; they are a possible
+benchmark, not the new architecture. New `main` replaces the active file tree
+while retaining Git ancestry, allowing publication without a history rewrite.
+Remote publication details are in [the migration record](docs/GIT_MIGRATION.md).
 
-`stage_cluster` is legacy (Phase 2) and ignored by Phase 1 tooling. If present in an existing CSV, it is preserved but unused.
-`negative_training` is an image-level tag for explicitly marking negative examples (default `no`).
+## Planned inputs and workflow
 
-Per-image polygon annotations live under `data/labels/annotations/<image_id>.json`:
-```json
-{
-  "image_id": "IMG_001",
-  "rel_path": "subdir/IMG_001.tif",
-  "include": "yes|no|unknown",
-  "quality": "high|low|unknown",
-  "tubules": [
-    {
-      "tubule_id": "IMG_001__0",
-      "polygon_xy": [[x1, y1], [x2, y2], [x3, y3]],
-      "orientation": "cross_section|longitudinal|oblique|unknown",
-      "partial": false,
-      "notes": ""
-    }
-  ],
-  "labeled_by": "Adam",
-  "labeled_at": "ISO-8601"
-}
-```
-Polygon points are in original image pixel coordinates. Empty `tubules` is allowed (no tubules or excluded).
-Orientation definitions:
-- `cross_section`: round/near-round tubule cross-sections.
-- `longitudinal`: elongated cuts along the tubule axis.
-- `oblique`: in-between/angled orientations.
-- `unknown`: not sure yet.
-`partial=true` marks cropped/incomplete cross-sections (currently treated as positives in training).
+- **A complete tissue section in a large OME-TIFF.** Read bounded regions without
+  materializing the highest-resolution section. Compare overlapping native-detail
+  tiles with lower-resolution localization followed by native-detail retrieval.
+- **A folder of existing 40× microscopy images.** Validate actual formats and
+  metadata; images may contain one or several tubules.
 
-## Annotation Tool (Polygons)
-Launch with `python -m src.dataset.annotation_tool`.
-- New tubule: click “New tubule”, then left-click to add vertices.
-- Close polygon: right-click or press Enter to close and save that tubule.
-- Backspace removes the last vertex while drawing.
-- Select existing polygon by clicking inside or near a vertex; Delete removes it.
-- Move vertex: click a vertex and drag.
-- Save: writes JSON to `data/labels/annotations/` and updates `labels.csv` include/quality metadata.
-- Use the top tabs to switch between include=yes/unknown and include=no images (kept separate).
+Both pathways will supply the same analysis contract to tubule isolation. Only
+suitable crops then enter staging. Nominal **40× does not specify µm/pixel**;
+counterstain, calibration, pyramid structure, and stage-group requirements remain
+pending. Enlarging a lower-resolution image does not restore native detail.
 
-Navigation and metadata:
-- `Prev` / `Next` cycle through images (default filter include!=no).
-- `I` cycles include; `Q` cycles quality.
-- Set per-tubule orientation with the dropdown or press `O` to cycle.
-- Toggle partial on the selected tubule with `P` (outline turns orange + “PARTIAL” label).
-- Optional args: `--only-unlabeled`, `--include yes|unknown`, `--start <image_id>`.
+## Approach
 
-Legacy `labeling_tool` (stage review UI) is disabled; use the polygon annotation tool for all labeling.
+Reuse mature software first. Compare classical morphology/watershed with
+QuPath, ilastik, or Fiji integration before considering new deep-learning work.
+Evaluate existing bright-field staging systems separately. None is yet validated
+on this project's images. No candidate image-processing library is installed by
+the scaffold.
 
-Legacy box tool is still available with `--mode box`.
+Start with [software evidence](docs/SOFTWARE_EVALUATION.md), the
+[competing prototypes](docs/PROTOTYPES.md), and the
+[evaluation plan](docs/EVALUATION_PLAN.md). Prototype selection needs representative
+images and expert review.
 
-## Training (Segmentation)
-Baseline model: lightweight U-Net (randomly initialized, no downloads).
+## Development
+
+Python 3.11+; there are no runtime dependencies.
+
 ```bash
-python -m src.training.seg_train --epochs 10 --batch-size 2 --device cpu \
-  --max-size 1024 --val-ratio 0.2 --include-yes-only
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+python -m ruff check .
+python -m ruff format --check .
+python -m pytest
 ```
-Default training command:
-```bash
-python -m src.training.seg_train \
-  --epochs 30 --batch-size 1 --device cpu \
-  --include-yes-only \
-  --require-nonempty-annotations \
-  --balanced-loss \
-  --area-penalty 1
-```
-Loss: BCEWithLogits + Dice. Targets use cross-section tubules (full + partial) as positives; longitudinal/oblique are explicit negatives.
-Use `--allowed-orientations cross_section` to ignore longitudinal/oblique polygons (default: all).
-Use `--require-nonempty-annotations` to skip images that have zero positive tubules annotated.
-`--require-positive-annotations` (default true) enforces this even if `--require-nonempty-annotations` is false.
-Use `--require-any-annotations` (default true) to require at least one tubule polygon (positive or negative).
-If the model predicts everything, add `--balanced-loss` to penalize the dominant class.
-If it still collapses to all-tubule, add `--area-penalty 0.5` (tune 0.1–1.0).
-Use `--use-negative-training` to include empty annotations only when `negative_training=yes`.
-Use `--use-negative-training` with `seg_eval` to match the same filter during evaluation.
-If negatives are underrepresented, use `--negative-sample-weight 5` (or higher) to upsample them during training.
-Use `--neg-tubule-weight` to upweight negative tubule pixels vs background (default 2.0).
-Use `--bg-weight` to adjust background weighting (default 1.0).
-Quality filtering is optional; pass `--only-high-quality` if you want to restrict to quality=high.
 
-Exports best weights to `models/exported/seg_model.pt`.
-Each completed training run also archives the exported model to `models/exported/past_models/` with a UTC timestamp in the filename.
+On Windows, use `py -3 -m venv .venv` and
+`.venv\Scripts\Activate.ps1`, then the same `python -m ...` commands.
+`bash scripts/check.sh` runs the three checks above in an activated environment.
+An import test checks packaging only; it says nothing about biological accuracy.
+Installation requires package access; future offline operation will require
+separately prepared, versioned dependencies and any approved models.
 
-## Evaluation (Segmentation)
-```bash
-python -m src.training.seg_eval --weights models/exported/seg_model.pt --save-viz
-```
-Postprocessing is the normal step for segmentation outputs (threshold -> clean small components/holes -> keep top K).
-Default `K=4` matches the typical 2–4 tubules per image.
-Example with postprocessing enabled:
-```bash
-python -m src.training.seg_eval --weights models/exported/seg_model.pt --save-viz --postprocess
-```
-Metrics: Dice, IoU, pixel precision/recall (computed on positive tubules only). Overlays are saved to `outputs/seg_viz/` when `--save-viz` is set.
-Overlays: GT positive outline (green), GT negative tubules (blue), prediction outline (red).
+## Roadmap and documentation
 
-## Inference CLI (Segmentation)
-```bash
-python -m src.app.inference --task seg --weights models/exported/seg_model.pt data/raw/example.tif \
-  --output-mask-dir outputs/masks --output-json outputs/seg_results.json
-```
-Outputs a binary mask PNG per image and JSON with instance boxes + confidence.
-Use `--split-instances` to separate connected tubule regions into per-tubule instances (optionally save a label map with `--output-instance-mask-dir`).
+| Phase | Deliverable |
+|---|---|
+| 0 — current | Preserve history; scaffold; software review; comparison design |
+| 1 | Characterize real images; verify scale; compare bounded region readers |
+| 2 | Compare segmentation and whole-section prototypes |
+| 3 | Select and validate reproducible tubule extraction |
+| 4 | Establish staging feasibility, accuracy, and uncertainty |
+| 5 | Integrate both inputs, batch exports, then assess GUI/deployment |
 
-## Desktop GUI (Segmentation)
-Tkinter app: `python -m src.app.gui`
-- Load segmentation weights (auto-loads `models/exported/seg_model.pt` if present).
-- Select TIFFs, view mask overlays and instance table.
-- Export masks + JSON/CSV.
+- [Project plan and Phase 1 entry checklist](docs/PROJECT_PLAN.md)
+- [Confirmed and pending experimental specifications](docs/EXPERIMENTAL_SPECIFICATIONS.md)
+- [Architecture and proposed data contracts](docs/ARCHITECTURE.md)
+- [Staging strategy](docs/STAGING_STRATEGY.md)
+- [Legacy findings](docs/LEGACY_FINDINGS.md)
+- [Decision log](docs/DECISIONS.md)
+- [Agent guidance](AGENTS.md)
 
-## Packaging (offline, no Python required for end users)
-- After training/export, ensure `models/exported/seg_model.pt` exists.
-- Build on Windows with PyInstaller (one-folder bundle includes Python + deps):
-```powershell
-scripts/build_app.ps1
-```
-Output: `dist/TubuleDetectorApp/`. Zip that folder and share; users unzip and run `TubuleDetectorApp/gui.exe`.
+Related repositories:
+[EyeSpySpermatogenesis](https://github.com/Bioticcc/EyeSpySpermatogenesis),
+[SCP-SpermColorPixels](https://github.com/Bioticcc/SCP-SpermColorPixels), and
+[EyeSpySC](https://github.com/Bioticcc/EyeSpySC).
 
-## Legacy Detection (Phase 1 - Boxes)
-Legacy detector training/eval/inference still exists under:
-- `src/training/detect_train.py`
-- `src/training/detect_eval.py`
-- `src/app/inference.py --task detect`
-- `LegacyDetectorApp` in `src/app/gui.py`
-
-## Phase 2 (Stage Classification - Legacy)
-Classification code remains under `src/training/train.py`, `src/training/eval.py`, and `src/app/gui.py` (Phase 2 UI). It is not used by default Phase 1 commands.
-
-## Testing
-```bash
-poetry run pytest
-```
-Tests use synthetic TIFFs and synthetic polygons; no real data required.
-
-## VS Code
-Launch configs are in `.vscode/launch.json` (annotation tool, segmentation training, GUI).
+Project licensing is pending owner selection. No third-party code or model weights
+have been incorporated into the new package.

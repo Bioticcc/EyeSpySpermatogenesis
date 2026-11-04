@@ -1,29 +1,28 @@
-[tool.poetry]
-name = "eye-spy-spermatogenesis"
-version = "0.1.0"
-description = "Offline desktop app to classify mouse testis seminiferous tubule TIFF images into stage clusters."
-authors = ["EyeSpySpermatogenesis Devs <dev@example.com>"]
-readme = "README.md"
-packages = [{ include = "src" }]
-
-[tool.poetry.dependencies]
-# Keep Python below 3.13 to satisfy PyInstaller and Torch requirements.
-python = ">=3.10,<3.13"
-torch = "2.1.2"
-torchvision = "0.16.2"
-numpy = "^1.26.3"
-scipy = "1.11.4"
-pandas = "^2.1.4"
-tifffile = "^2023.12.9"
-Pillow = "^10.1.0"
-scikit-learn = "^1.3.2"
-tqdm = "^4.66.1"
-matplotlib = "^3.8.2"
-pyinstaller = "^6.3.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.4.4"
-
 [build-system]
-requires = ["poetry-core>=1.6.1"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eyespy-spermatogenesis"
+version = "0.0.1"
+description = "Planning foundation for reproducible mouse testis histology analysis"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "ruff>=0.11,<1"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

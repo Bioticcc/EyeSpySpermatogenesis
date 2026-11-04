@@ -14,8 +14,8 @@ not image compatibility or biological performance.
 - `pip check` found no broken requirements.
 - Runtime dependency list is empty. No image/ML/GUI dependencies were installed.
 
-The GitHub Actions workflow covers Python 3.11–3.13 on Linux. Hosted CI results
-must be checked separately after publication; local checks cover only Python 3.11.
+The GitHub Actions workflow covers Python 3.11–3.13 on Linux. All three hosted
+jobs passed for the published scaffold; local checks cover only Python 3.11.
 
 ## Archive and publication
 
@@ -38,13 +38,15 @@ in the active tree. Local documentation links and the owner's original note
 checksum passed checks; representative mixed-case image/model paths are ignored,
 while source data-model modules remain tracked.
 
-**Remote publication is blocked.** GitHub rejected the ordinary main push because
-the current OAuth credential lacks `workflow` scope. SSH fallback also failed
-authentication. Remote main was not modified; the published legacy branch remains
-at the original SHA. No hosted CI run exists for this local scaffold commit.
-Owner authorization and exact safe retry steps are in
-[GIT_MIGRATION.md](GIT_MIGRATION.md#remaining-owner-authorization-publish-main-with-ci).
-The follow-up documentation commit records this blocker; it changes no package code.
+**Remote publication is complete.** After owner-approved GitHub authorization,
+a normal fast-forward push published `45ddcfa1a06166e4f476e728525e27c0ac5de7e9`
+to main. Remote legacy remains at the exact original SHA. No history was rewritten
+and no default-branch change was needed. See [GIT_MIGRATION.md](GIT_MIGRATION.md).
+
+[Scaffold checks run 41918532551](https://github.com/Bioticcc/EyeSpySpermatogenesis/actions/runs/41918532551)
+completed successfully for that published commit. The Python 3.11, 3.12 and 3.13
+jobs each passed installation, Ruff lint/formatting and the package import test.
+The publication follow-up changes only documentation; its CI runs separately.
 
 ## Scientific and platform limits
 

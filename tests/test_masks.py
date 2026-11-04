@@ -1,6 +1,15 @@
 import numpy as np
 
-from src.dataset.masks import build_ignore_target_mask, rasterize_instances, rasterize_polygon, split_mask_instances
+from src.dataset.annotations import TubulePolygon
+from src.dataset.masks import (
+    build_ignore_target_mask,
+    rasterize_instances,
+    rasterize_polygon,
+    rasterize_tubule_masks,
+    resolve_pos_neg_conflicts,
+    split_mask_instances,
+)
+from src.dataset.schema import Orientation
 
 
 def test_rasterize_polygon_square() -> None:
@@ -46,3 +55,57 @@ def test_build_ignore_target_mask_dilates() -> None:
     assert target[3, 3] == 1
     assert (target == -1).sum() > 0
     assert target[0, 0] == 0
+
+
+def test_rasterize_tubule_masks_positive_only() -> None:
+    tubules = [
+        TubulePolygon(
+            tubule_id="t1",
+            polygon_xy=[[2, 2], [6, 2], [6, 6], [2, 6]],
+            orientation=Orientation.CROSS_SECTION,
+            partial=False,
+        )
+    ]
+    pos_mask, neg_mask, counts = rasterize_tubule_masks(tubules, height=10, width=10)
+    assert pos_mask.sum() > 0
+    assert neg_mask.sum() == 0
+    assert counts["pos_full_cross_section"] == 1
+
+
+def test_rasterize_tubule_masks_partial_is_positive() -> None:
+    tubules = [
+        TubulePolygon(
+            tubule_id="t1",
+            polygon_xy=[[2, 2], [6, 2], [6, 6], [2, 6]],
+            orientation=Orientation.CROSS_SECTION,
+            partial=True,
+        )
+    ]
+    pos_mask, neg_mask, counts = rasterize_tubule_masks(tubules, height=10, width=10)
+    assert pos_mask.sum() > 0
+    assert neg_mask.sum() == 0
+    assert counts["partial_cross_section"] == 1
+
+
+def test_rasterize_tubule_masks_oblique_is_negative() -> None:
+    tubules = [
+        TubulePolygon(
+            tubule_id="t1",
+            polygon_xy=[[2, 2], [6, 2], [6, 6], [2, 6]],
+            orientation=Orientation.OBLIQUE,
+        )
+    ]
+    pos_mask, neg_mask, counts = rasterize_tubule_masks(tubules, height=10, width=10)
+    assert pos_mask.sum() == 0
+    assert neg_mask.sum() > 0
+    assert counts["neg_oblique"] == 1
+
+
+def test_resolve_pos_neg_conflicts_pos_wins() -> None:
+    pos = np.zeros((5, 5), dtype=np.uint8)
+    neg = np.zeros((5, 5), dtype=np.uint8)
+    pos[2, 2] = 1
+    neg[2, 2] = 1
+    neg_fixed, overlap = resolve_pos_neg_conflicts(pos, neg)
+    assert overlap == 1
+    assert neg_fixed[2, 2] == 0

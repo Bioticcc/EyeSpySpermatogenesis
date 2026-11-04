@@ -49,6 +49,7 @@
         ]
       ],
       "orientation": "longitudinal",
+      "partial": true,
       "notes": ""
     },
     {
@@ -88,9 +89,10 @@
         ]
       ],
       "orientation": "longitudinal",
+      "partial": true,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T22:15:55Z"
+  "labeled_at": "2026-01-29T20:18:19Z"
 }

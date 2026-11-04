@@ -81,6 +81,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": false,
       "notes": ""
     },
     {
@@ -136,6 +137,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": false,
       "notes": ""
     },
     {
@@ -203,6 +205,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": false,
       "notes": ""
     },
     {
@@ -266,6 +269,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": true,
       "notes": ""
     },
     {
@@ -317,9 +321,10 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": true,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T22:16:10Z"
+  "labeled_at": "2026-01-29T20:20:54Z"
 }

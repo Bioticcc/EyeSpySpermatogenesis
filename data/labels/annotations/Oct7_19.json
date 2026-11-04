@@ -45,6 +45,7 @@
         ]
       ],
       "orientation": "oblique",
+      "partial": true,
       "notes": ""
     },
     {
@@ -96,6 +97,7 @@
         ]
       ],
       "orientation": "oblique",
+      "partial": false,
       "notes": ""
     },
     {
@@ -143,6 +145,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": true,
       "notes": ""
     },
     {
@@ -190,9 +193,10 @@
         ]
       ],
       "orientation": "oblique",
+      "partial": false,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T22:50:51Z"
+  "labeled_at": "2026-01-29T20:32:13Z"
 }

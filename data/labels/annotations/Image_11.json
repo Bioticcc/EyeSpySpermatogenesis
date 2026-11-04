@@ -49,6 +49,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": false,
       "notes": ""
     },
     {
@@ -116,6 +117,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": false,
       "notes": ""
     },
     {
@@ -163,6 +165,7 @@
         ]
       ],
       "orientation": "longitudinal",
+      "partial": true,
       "notes": ""
     },
     {
@@ -210,6 +213,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": false,
       "notes": ""
     },
     {
@@ -245,6 +249,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": true,
       "notes": ""
     },
     {
@@ -292,9 +297,10 @@
         ]
       ],
       "orientation": "longitudinal",
+      "partial": true,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-15T17:58:03Z"
+  "labeled_at": "2026-01-29T20:18:12Z"
 }

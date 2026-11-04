@@ -77,6 +77,7 @@
         ]
       ],
       "orientation": "oblique",
+      "partial": false,
       "notes": ""
     },
     {
@@ -148,6 +149,7 @@
         ]
       ],
       "orientation": "oblique",
+      "partial": false,
       "notes": ""
     },
     {
@@ -223,6 +225,7 @@
         ]
       ],
       "orientation": "oblique",
+      "partial": false,
       "notes": ""
     },
     {
@@ -270,9 +273,10 @@
         ]
       ],
       "orientation": "oblique",
+      "partial": true,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T22:47:04Z"
+  "labeled_at": "2026-01-29T20:31:16Z"
 }

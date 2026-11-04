@@ -57,9 +57,54 @@
         ]
       ],
       "orientation": "longitudinal",
+      "partial": false,
+      "notes": ""
+    },
+    {
+      "tubule_id": "Multistage oct 14_57__1",
+      "polygon_xy": [
+        [
+          5.625,
+          450.0
+        ],
+        [
+          127.5,
+          526.875
+        ],
+        [
+          350.625,
+          650.625
+        ],
+        [
+          485.625,
+          744.375
+        ],
+        [
+          637.5,
+          881.25
+        ],
+        [
+          746.25,
+          980.625
+        ],
+        [
+          845.625,
+          1128.75
+        ],
+        [
+          885.0,
+          1199.0
+        ],
+        [
+          1.875,
+          1199.0
+        ]
+      ],
+      "orientation": "longitudinal",
+      "partial": true,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T22:15:56Z"
+  "labeled_at": "2026-01-29T20:18:30Z"
 }

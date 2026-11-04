@@ -57,6 +57,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": true,
       "notes": ""
     },
     {
@@ -152,6 +153,7 @@
         ]
       ],
       "orientation": "oblique",
+      "partial": false,
       "notes": ""
     },
     {
@@ -211,9 +213,10 @@
         ]
       ],
       "orientation": "longitudinal",
+      "partial": true,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T23:12:13Z"
+  "labeled_at": "2026-01-29T20:33:40Z"
 }

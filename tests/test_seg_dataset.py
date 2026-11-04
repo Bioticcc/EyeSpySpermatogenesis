@@ -51,8 +51,10 @@ def test_segmentation_dataset_returns_mask(tmp_path: Path) -> None:
         require_annotations=True,
         instance_mode=False,
     )
-    image, mask = dataset[0]
+    image, mask, neg_mask = dataset[0]
     assert image.shape[0] == 3
     assert mask.shape[0] == 1
+    assert neg_mask.shape[0] == 1
     assert mask.dtype == torch.float32
     assert mask.sum() > 0
+    assert neg_mask.sum() == 0

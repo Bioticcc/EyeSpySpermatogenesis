@@ -14,8 +14,5 @@ build/
 #! allow PyInstaller spec
 # *.spec
 poetry.lock
-data/raw/
 data/processed/
 data/splits/
-models/exported/
-!models/exported/.gitkeep

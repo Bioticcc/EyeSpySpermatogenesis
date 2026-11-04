@@ -17,8 +17,16 @@ def migrate_annotation_data(data: Dict[str, Any]) -> int:
     updated = 0
     if isinstance(tubules, list):
         for tubule in tubules:
-            if isinstance(tubule, dict) and "orientation" not in tubule:
+            if not isinstance(tubule, dict):
+                continue
+            changed = False
+            if "orientation" not in tubule:
                 tubule["orientation"] = Orientation.UNKNOWN.value
+                changed = True
+            if "partial" not in tubule:
+                tubule["partial"] = False
+                changed = True
+            if changed:
                 updated += 1
     return updated
 
@@ -54,7 +62,7 @@ def migrate_annotations(annotations_path: Path, in_place: bool) -> Tuple[int, in
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Backfill missing tubule orientation fields.")
+    parser = argparse.ArgumentParser(description="Backfill missing tubule orientation/partial fields.")
     parser.add_argument("--annotations-dir", type=Path, default=annotations_dir())
     parser.add_argument("--in-place", action="store_true", help="Write updates back to JSON files")
     return parser.parse_args()

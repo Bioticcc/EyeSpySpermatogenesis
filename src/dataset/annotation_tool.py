@@ -234,6 +234,8 @@ class PolygonAnnotationTool:
         self.root.bind("q", lambda _event: self.cycle_quality())
         self.root.bind("o", lambda _event: self.cycle_orientation())
         self.root.bind("O", lambda _event: self.cycle_orientation())
+        self.root.bind("p", lambda _event: self.toggle_partial())
+        self.root.bind("P", lambda _event: self.toggle_partial())
 
         self.photo: Optional[ImageTk.PhotoImage] = None
         self.image_id_on_canvas: Optional[int] = None
@@ -276,6 +278,7 @@ class PolygonAnnotationTool:
             tubule_id=tubule.tubule_id,
             polygon_xy=points,
             orientation=tubule.orientation,
+            partial=tubule.partial,
             notes=tubule.notes,
         )
         self.redraw_overlays()
@@ -310,6 +313,7 @@ class PolygonAnnotationTool:
                 tubule_id=tubule_id,
                 polygon_xy=polygon_xy,
                 orientation=Orientation.UNKNOWN,
+                partial=False,
                 notes="",
             )
         )
@@ -388,7 +392,11 @@ class PolygonAnnotationTool:
     def refresh_tubule_list(self) -> None:
         self.tubule_list.delete(0, tk.END)
         for idx, tubule in enumerate(self.current_tubules):
-            self.tubule_list.insert(tk.END, f"{idx}: {len(tubule.polygon_xy)} pts | {tubule.orientation.value}")
+            partial_flag = " | partial" if tubule.partial else ""
+            self.tubule_list.insert(
+                tk.END,
+                f"{idx}: {len(tubule.polygon_xy)} pts | {tubule.orientation.value}{partial_flag}",
+            )
 
     def redraw_overlays(self) -> None:
         self.canvas.delete("overlay")
@@ -396,12 +404,17 @@ class PolygonAnnotationTool:
             points = [self.original_to_display(px, py) for px, py in tubule.polygon_xy]
             if len(points) < 2:
                 continue
-            outline = "red" if idx == self.selected_tubule_idx else "lime"
+            if idx == self.selected_tubule_idx:
+                outline = "red"
+            else:
+                outline = "orange" if tubule.partial else "lime"
             flat = [coord for pt in points for coord in pt]
             self.canvas.create_polygon(*flat, outline=outline, fill="", width=2, tags="overlay")
             for vx, vy in points:
                 self.canvas.create_oval(vx - 3, vy - 3, vx + 3, vy + 3, outline=outline, fill=outline, tags="overlay")
             label_text = f"{idx}: {tubule.orientation.value}"
+            if tubule.partial:
+                label_text += " | PARTIAL"
             self.canvas.create_text(
                 points[0][0] + 6,
                 points[0][1] + 6,
@@ -466,6 +479,21 @@ class PolygonAnnotationTool:
             tubule_id=tubule.tubule_id,
             polygon_xy=list(tubule.polygon_xy),
             orientation=orientation,
+            partial=tubule.partial,
+            notes=tubule.notes,
+        )
+        self.refresh_tubule_list()
+        self.redraw_overlays()
+
+    def toggle_partial(self) -> None:
+        if self.selected_tubule_idx is None:
+            return
+        tubule = self.current_tubules[self.selected_tubule_idx]
+        self.current_tubules[self.selected_tubule_idx] = TubulePolygon(
+            tubule_id=tubule.tubule_id,
+            polygon_xy=list(tubule.polygon_xy),
+            orientation=tubule.orientation,
+            partial=not tubule.partial,
             notes=tubule.notes,
         )
         self.refresh_tubule_list()

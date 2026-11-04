@@ -73,9 +73,50 @@
         ]
       ],
       "orientation": "longitudinal",
+      "partial": true,
+      "notes": ""
+    },
+    {
+      "tubule_id": "Late Stage VII early Stage VIII_56__1",
+      "polygon_xy": [
+        [
+          1080.0,
+          1.875
+        ],
+        [
+          1117.5,
+          67.5
+        ],
+        [
+          1222.5,
+          146.25
+        ],
+        [
+          1331.25,
+          245.625
+        ],
+        [
+          1436.25,
+          309.375
+        ],
+        [
+          1492.5,
+          348.75
+        ],
+        [
+          1919.0,
+          695.625
+        ],
+        [
+          1916.25,
+          3.75
+        ]
+      ],
+      "orientation": "longitudinal",
+      "partial": true,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T22:15:54Z"
+  "labeled_at": "2026-01-29T20:18:16Z"
 }

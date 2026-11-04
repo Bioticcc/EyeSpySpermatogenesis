@@ -53,6 +53,7 @@
         ]
       ],
       "orientation": "longitudinal",
+      "partial": true,
       "notes": ""
     },
     {
@@ -88,9 +89,54 @@
         ]
       ],
       "orientation": "oblique",
+      "partial": true,
+      "notes": ""
+    },
+    {
+      "tubule_id": "Oct14_59__2",
+      "polygon_xy": [
+        [
+          1228.125,
+          3.75
+        ],
+        [
+          1916.25,
+          3.75
+        ],
+        [
+          1919.0,
+          963.75
+        ],
+        [
+          1815.0,
+          1074.375
+        ],
+        [
+          1689.375,
+          1083.75
+        ],
+        [
+          1590.0,
+          1035.0
+        ],
+        [
+          1346.25,
+          661.875
+        ],
+        [
+          1252.5,
+          328.125
+        ],
+        [
+          1220.625,
+          15.0
+        ]
+      ],
+      "orientation": "longitudinal",
+      "partial": true,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T22:16:04Z"
+  "labeled_at": "2026-01-29T20:19:42Z"
 }

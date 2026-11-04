@@ -96,10 +96,11 @@
           1192.5
         ]
       ],
-      "orientation": "oblique",
+      "orientation": "longitudinal",
+      "partial": true,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T23:13:47Z"
+  "labeled_at": "2026-01-29T20:33:49Z"
 }

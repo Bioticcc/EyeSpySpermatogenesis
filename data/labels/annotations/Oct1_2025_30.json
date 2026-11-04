@@ -73,6 +73,7 @@
         ]
       ],
       "orientation": "cross_section",
+      "partial": false,
       "notes": ""
     },
     {
@@ -124,6 +125,7 @@
         ]
       ],
       "orientation": "oblique",
+      "partial": true,
       "notes": ""
     },
     {
@@ -178,10 +180,55 @@
           1190.625
         ]
       ],
-      "orientation": "oblique",
+      "orientation": "cross_section",
+      "partial": false,
+      "notes": ""
+    },
+    {
+      "tubule_id": "Oct1_2025_30__3",
+      "polygon_xy": [
+        [
+          1910.625,
+          586.875
+        ],
+        [
+          1775.625,
+          607.5
+        ],
+        [
+          1646.25,
+          656.25
+        ],
+        [
+          1567.5,
+          691.875
+        ],
+        [
+          1464.375,
+          793.125
+        ],
+        [
+          1460.625,
+          1006.875
+        ],
+        [
+          1440.0,
+          1106.25
+        ],
+        [
+          1456.875,
+          1196.25
+        ],
+        [
+          1918.125,
+          1199.0
+        ]
+      ],
+      "orientation": "cross_section",
+      "partial": true,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T22:20:41Z"
+  "labeled_at": "2026-01-29T20:23:13Z"
 }

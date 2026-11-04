@@ -121,9 +121,10 @@
         ]
       ],
       "orientation": "longitudinal",
+      "partial": false,
       "notes": ""
     }
   ],
   "labeled_by": "",
-  "labeled_at": "2026-01-20T22:34:41Z"
+  "labeled_at": "2026-01-29T20:27:33Z"
 }

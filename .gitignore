@@ -31,6 +31,7 @@ Thumbs.db
 /data/
 /datasets/
 /inputs/
+/Inputs/
 /inputsTest/
 /outputs/
 /results/
@@ -88,3 +89,8 @@ Thumbs.db
 *.tar.gz
 *.tgz
 *.gitbundle
+
+# README figures only: downscaled overview overlays chosen by the owner.
+# Every other image, crop and output stays local.
+!/docs/images/readme_v01_overlay.jpg
+!/docs/images/readme_v03_overlay.jpg

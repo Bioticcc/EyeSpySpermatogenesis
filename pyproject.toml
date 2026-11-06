@@ -12,9 +12,21 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<9", "ruff>=0.11,<1"]
+io = ["tifffile==2025.6.11", "numpy==2.2.6"]
+jpeg = ["imagecodecs==2025.3.30"]
+prototype = [
+    "tifffile==2025.6.11",
+    "numpy==2.2.6",
+    "scipy==1.15.3",
+    "scikit-image==0.25.2",
+    "pillow==13.0.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"eyespy_spermatogenesis.segmentation" = ["*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

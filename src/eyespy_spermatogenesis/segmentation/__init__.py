@@ -1,1 +1,1 @@
-"""Future tubule isolation adapters and standardized crop export."""
+"""Unvalidated overview candidates; native boundary refinement remains pending."""

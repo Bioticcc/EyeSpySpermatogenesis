@@ -1,6 +1,6 @@
 # Architecture decision log
 
-Recorded 2026-11-04. Accepted scope decisions do not select an algorithm.
+Started 2026-11-04; updated 2026-11-06. Accepted scope decisions do not select an algorithm.
 
 | ID | Status | Decision and rationale | Alternatives / reopening evidence |
 |---|---|---|---|
@@ -11,12 +11,17 @@ Recorded 2026-11-04. Accepted scope decisions do not select an algorithm.
 | 005 | Accepted — scaffold boundary | Python 3.11+, setuptools, pytest and Ruff; no runtime dependencies or substantive algorithms. | Add trial tools in isolated Phase 1/2 environments after approval; reconsider Python support against their actual constraints. |
 | 006 | Proposed | Shared lazy region and tubule-result contracts with source-space transforms and nullable calibration. | Validate actual axes, series, color and export conventions in Phase 1 before coding a schema. |
 | 007 | Proposed | Trial tifffile metadata/bounded access with Bio-Formats/QuPath cross-check; pyvips as speed comparator. | Reader choice depends on actual OME-TIFF storage/codecs and measured memory. OpenSlide only after compatibility checks. |
-| 008 | Open | Compare D1 direct native tiling, D2 coarse localization with native retrieval, D3 whole-slide integration. | No presumption that 20× localization is more accurate or efficient. |
+| 008 | Superseded for initial workflow by 016, then 017 | D1/D2/D3 were initially equal candidates. Decision 016 initially chose D1; 017 now chooses D2. | No presumption that 20× localization is more accurate or efficient. |
 | 009 | Proposed | A morphology baseline and B QuPath/ilastik/Fiji integrations on common grouped data. | Approve a detailed experiment after representative-image review; no selected thresholds. |
 | 010 | Open | Exact I–XII, grouped stages, or both. | Owner/expert must select taxonomy and minimum useful deliverable. |
 | 011 | Proposed | Investigate STSP and SATINN v2 before original staging models; CSS-inspired features as independent comparator. | Counterstain, fixation/scale matching, model terms, platform and local validation may change priority. |
 | 012 | Accepted — data integrity | Native originals and coordinates persist; no inferred µm/pixel and no upsampling claim of recovered detail. | Unknown/conflicting calibration is explicit and gates physical claims. |
 | 013 | Open | Hardware/OS, packaging and project license. | Owner selection; no GUI framework or third-party redistribution decision during Phase 0. |
+| 014 | Accepted — Phase 1 trial, 2026-11-04 | Owner authorized Phase 1. Add an optional, pinned tifffile/NumPy metadata-only inspector and synthetic integrity tests. Keep metadata reported/unverified and preserve originals. | Supersedes the empty-module-only restriction for characterization, not the proposed pipeline contracts. No mandatory image dependencies; no production reader or segmentation selection. |
+| 015 | Accepted — Phase 1 sequence, 2026-11-04 | Validate manually specified source-coordinate regions and crop fidelity on actual TIFFs before automatic tubule identification. | Reader experiments await representative inputs; no full cropper is implemented before format inspection. |
+| 016 | Superseded by 017; owner clarification, 2026-11-04 | Whole-section TIFF processing proceeds through native 40× grid tiles, individual-tubule cropping/separation, then later analysis. Start with D1 overlapping direct grid tiling, validated after manual-region checks. | Tile size/overlap and identification methods remain unselected. Preserve source coordinates, reconcile border-spanning tubules and deduplicate instances. Cropping cannot create missing native resolution. |
+
+| 017 | Accepted — owner direction and prototype authorization, 2026-11-06 | Start with D2: whole-section overview localization, then native crop retrieval and later native refinement. Implement and test synthetic plumbing plus an unvalidated classical comparator now, before the test TIFF arrives. See [prototype plan](OVERVIEW_PROTOTYPE.md). | Supersedes 016 and the prior wait-for-files implementation restriction for this limited prototype. D1 remains fallback; D3 QuPath comparator. Real-image fidelity, recall, native boundaries and scientific success criteria remain pending. Staging is not authorized. |
 
 Future decisions should record date, status, evidence, rationale, alternatives,
 owner approval where required and consequences. Supersede entries explicitly;

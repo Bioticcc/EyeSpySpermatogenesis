@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tubule Crop Review</title>
+<style>
+:root {
+  --ink: #173331; --muted: #617370; --soft: #e5ece8; --paper: #ffffff;
+  --canvas: #f3f6f3; --green-950: #102b2b; --green-800: #184b47;
+  --green-700: #1e655d; --green-500: #3f8f81; --green-100: #dcece6;
+  --amber: #a15d14; --amber-soft: #fff2da; --red: #a23b3b; --red-soft: #fde8e5;
+  --blue: #336b89; --line: #dce5e1; --shadow: 0 12px 35px rgba(16,43,43,.07);
+  --radius-panel: 14px; --radius-control: 8px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); font: 14px/1.45 Inter, ui-sans-serif,
+  system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top right, #e3efe9, transparent 40%), var(--canvas); }
+header { background: var(--green-950); color: #fff; padding: 14px 20px;
+  position: sticky; top: 0; z-index: 5; box-shadow: var(--shadow); }
+header h1 { font: 500 22px Georgia, serif; margin: 0 0 6px; }
+header .row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+header .stat { font-size: 13px; color: #cfe2dc; }
+header .stat b { font: 500 17px Georgia, serif; color: #fff; }
+button, select { font: inherit; border-radius: var(--radius-control);
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+  padding: 5px 10px; cursor: pointer; }
+button.primary { background: var(--green-700); border-color: var(--green-700); color: #fff; }
+button:focus-visible, .card:focus-visible { outline: 3px solid var(--green-500); outline-offset: 2px; }
+.keys { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.keys span { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
+  border-radius: 99px; padding: 2px 10px 2px 4px; font-size: 13px; color: #fff; cursor: help; }
+.keys kbd { background: #fff; color: var(--green-950); margin-right: 5px; }
+.layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); align-items: start; }
+aside { position: sticky; top: var(--head, 110px); max-height: calc(100vh - var(--head, 110px));
+  overflow-y: auto; background: var(--green-800); color: #fff; padding: 12px 10px 24px; }
+aside .eyebrow { color: #bcd8cf; padding: 0 6px 6px; }
+aside a { display: block; color: #fff; text-decoration: none; border-radius: 8px; padding: 6px 8px; }
+aside a:hover, aside a.active { background: rgba(255,255,255,.12); }
+aside .name { font-size: 13px; overflow-wrap: anywhere; }
+aside .count { font-size: 12px; color: #bcd8cf; }
+aside .count.complete { color: #9fe0c8; }
+aside .sub { display: flex; gap: 4px; padding: 0 8px 6px; }
+aside .sub a { display: inline; padding: 1px 6px; font-size: 12px; color: #d6e8e2;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 99px; }
+main { padding: 16px 20px 80px; max-width: 1700px; min-width: 0; }
+main > section { scroll-margin-top: calc(var(--head, 110px) + 10px); }
+.eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 11px;
+  color: var(--green-700); font-weight: 600; }
+.panel { background: var(--paper); border: 1px solid var(--line);
+  border-radius: var(--radius-panel); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 18px; }
+.panel h2 { font: 500 19px Georgia, serif; margin: 2px 0 8px; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 4px 18px; padding: 0; margin: 6px 0 0; list-style: none; }
+.legend span { color: var(--muted); }
+kbd { background: var(--soft); border-radius: 4px; padding: 0 5px; font-size: 12px; }
+table { border-collapse: collapse; font-size: 13px; }
+td, th { padding: 3px 10px; border-bottom: 1px solid var(--line); text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+.section-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+.section-head a { color: var(--blue); }
+.missed { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+.missed input { width: 64px; font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb, 190px), 1fr)); gap: 10px; margin-top: 10px; }
+.card { background: var(--paper); border: 2px solid var(--line); border-radius: 10px;
+  overflow: hidden; cursor: pointer; position: relative; }
+.card .thumb { position: relative; }
+.card img { width: 100%; aspect-ratio: 1; object-fit: contain; background: #eef1ef; display: block; }
+.card img.outline { position: absolute; inset: 0; background: transparent; pointer-events: none; }
+body.no-outline .card img.outline { display: none; }
+.savehint { font-size: 12px; color: #cfe2dc; overflow-wrap: anywhere; }
+.savehint code { color: #fff; }
+.card .noimg { aspect-ratio: 1; display: grid; place-items: center; color: var(--muted); font-size: 12px; padding: 8px; text-align: center; }
+.card .meta { padding: 4px 7px 6px; font-size: 12px; }
+.card .id { font-weight: 600; }
+.card .flags { color: var(--amber); }
+.card.flagged { border-style: dashed; }
+.card.selected { border-color: var(--green-500); box-shadow: 0 0 0 3px var(--green-100); }
+.card .verdict { position: absolute; top: 6px; left: 6px; padding: 1px 7px; border-radius: 99px;
+  font-size: 12px; font-weight: 600; color: #fff; display: none; }
+.card[data-v] .verdict { display: block; }
+.card[data-v="good"] { border-color: var(--green-700); }
+.card[data-v="good"] .verdict { background: var(--green-700); }
+.card[data-v="merged"] .verdict, .card[data-v="split"] .verdict { background: var(--red); }
+.card[data-v="partial"] .verdict, .card[data-v="unsure"] .verdict { background: var(--amber); }
+.card[data-v="not_tubule"] .verdict { background: var(--muted); }
+.card[data-v="merged"], .card[data-v="split"] { border-color: var(--red); }
+.hidden { display: none !important; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { position: static; max-height: none; } }
+@media (max-width: 600px) { main, header { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tubule crop review · __TITLE__</h1>
+  <div class="row">
+    <span class="stat">Reviewed <b id="s-done">0</b> / <b id="s-total">0</b></span>
+    <span class="stat">Recommended crops good: <b id="s-prec">–</b></span>
+    <label class="stat">Show
+      <select id="filter">
+        <option value="all">all</option>
+        <option value="unreviewed">unreviewed</option>
+        <option value="rec">crop-recommended</option>
+        <option value="flagged">flagged</option>
+      </select></label>
+    <label class="stat">Size <input id="size" type="range" min="120" max="384" value="190"></label>
+    <button id="outline-toggle" title="Show or hide the yellow outline (key O)">Outline: on</button>
+    <button class="primary" id="export">Export CSV</button>
+    <span class="savehint">Save the export in <code id="savedir"></code></span>
+  </div>
+  <div class="keys" id="keys"></div>
+</header>
+<div class="layout">
+<aside><div class="eyebrow">Sections</div><nav id="nav"></nav></aside>
+<main>
+  <section class="panel">
+    <div class="eyebrow">How to review</div>
+    <h2>Does the yellow outline trace one tubule?</h2>
+    <p>The yellow line is the program's outline of the candidate. Judge the outline, not the neighbours visible in the corners.
+      Click a crop (or use <kbd>←</kbd> <kbd>→</kbd>), then press a number. The next crop is selected automatically.
+      Press <kbd>0</kbd> to clear. Dashed borders are candidates the algorithm already flagged; review them too, so the flags themselves can be checked.
+      For each section, also estimate how many tubules got <i>no</i> crop at all (open the overview overlay and look for tubules without a number). This is not the "Not a tubule" verdict. Verdicts are saved in this browser until you export.</p>
+    <ul class="legend">__LEGEND__</ul>
+  </section>
+  <section class="panel">
+    <div class="eyebrow">Running totals</div>
+    <div id="summary"></div>
+  </section>
+  <div id="sections"></div>
+</main>
+</div>
+<script>
+const DATA = __DATA__;
+const KEY = "tubule-review:" + location.pathname;
+let state = { v: {}, missed: {} };
+try { state = Object.assign(state, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+const VLABEL = Object.fromEntries(DATA.verdicts.map(v => [v[0], v[1]]));
+const cards = [];
+let selected = -1;
+
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v);
+  }
+  kids.forEach(k => n.append(k));
+  return n;
+}
+
+const keys = document.getElementById("keys");
+DATA.verdicts.forEach((v, i) => keys.append(el("span", { title: v[2] }, el("kbd", { text: String(i + 1) }), v[1])));
+keys.append(el("span", { title: "Clear the selected crop's verdict" }, el("kbd", { text: "0" }), "Clear"));
+keys.append(el("span", { title: "Show or hide the yellow outline" }, el("kbd", { text: "O" }), "Outline"));
+document.getElementById("savedir").textContent = decodeURIComponent(location.pathname.replace(/[^/]*$/, ""));
+const outlineButton = document.getElementById("outline-toggle");
+let showOutline = true;
+try { showOutline = localStorage.getItem("tubule-review:outline") !== "off"; } catch (e) {}
+function setOutline(on) {
+  showOutline = on;
+  document.body.classList.toggle("no-outline", !on);
+  outlineButton.textContent = "Outline: " + (on ? "on" : "off");
+  try { localStorage.setItem("tubule-review:outline", on ? "on" : "off"); } catch (e) {}
+}
+outlineButton.addEventListener("click", () => setOutline(!showOutline));
+setOutline(showOutline);
+const header = document.querySelector("header");
+function headerHeight() { document.body.style.setProperty("--head", header.offsetHeight + "px"); }
+headerHeight(); window.addEventListener("resize", headerHeight);
+
+const nav = document.getElementById("nav");
+const navItems = [];
+function jump(target, cardIndex) {
+  target.scrollIntoView({ block: "start" });
+  if (cardIndex !== undefined) select(cardIndex);
+}
+const root = document.getElementById("sections");
+DATA.sources.forEach((src, si) => {
+  const panel = el("section", { class: "panel", id: "src-" + si });
+  const head = el("div", { class: "section-head" });
+  const title = el("div");
+  title.append(el("div", { class: "eyebrow", text: src.folder + " · " + (src.method || "") }));
+  title.append(el("h2", { text: src.name }));
+  head.append(title);
+  const right = el("div", { class: "missed" });
+  const link = el("a", { href: src.overlay, target: "_blank", text: "Open overview overlay" });
+  const input = el("input", { type: "number", min: "0", placeholder: "?" });
+  input.value = state.missed[src.folder] ?? "";
+  input.addEventListener("input", () => { state.missed[src.folder] = input.value; save(); });
+  right.append(link, el("span", { text: " · tubules with no crop ≈" }), input);
+  head.append(right);
+  panel.append(head);
+  const rec = src.candidates.filter(c => c.recommended).length;
+  panel.append(el("div", { class: "eyebrow", text: `${src.candidates.length} candidates · ${rec} crop-recommended · ${src.candidates.length - rec} flagged` }));
+  const grid = el("div", { class: "grid" });
+  src.candidates.forEach(c => {
+    const key = src.folder + "/" + c.label;
+    const card = el("div", { class: "card" + (c.recommended ? "" : " flagged"), tabindex: "0" });
+    card.dataset.key = key;
+    card.dataset.rec = c.recommended ? "1" : "0";
+    card.append(el("span", { class: "verdict" }));
+    if (c.thumbnail) {
+      const thumb = el("div", { class: "thumb" }, el("img", { src: c.thumbnail, loading: "lazy", alt: "candidate " + c.label }));
+      if (c.outline) thumb.append(el("img", { class: "outline", src: c.outline, loading: "lazy", alt: "" }));
+      card.append(thumb);
+    }
+    else card.append(el("div", { class: "noimg", text: "No thumbnail (" + (c.export_status || "none") + ")" }));
+    const meta = el("div", { class: "meta" });
+    meta.append(el("span", { class: "id", text: "#" + c.label + " " }));
+    if (c.flags.length) meta.append(el("span", { class: "flags", text: c.flags.join(", ") }));
+    card.append(meta);
+    const index = cards.length;
+    card.addEventListener("click", () => select(index));
+    cards.push({ card, key, c, src });
+    grid.append(card);
+    paint(index);
+  });
+  panel.append(grid);
+  root.append(panel);
+  const mine = cards.map((x, i) => i).filter(i => cards[i].src === src);
+  const navLink = el("a", { href: "#src-" + si });
+  const count = el("div", { class: "count" });
+  navLink.append(el("div", { class: "name", text: src.name.replace(/\.ome\.tiff?$|\.tiff?$/i, "") }), count);
+  navLink.addEventListener("click", e => { e.preventDefault(); jump(panel); });
+  const sub = el("div", { class: "sub" });
+  const next = el("a", { href: "#", title: "Select the first crop in this section without a verdict" , text: "next unreviewed" });
+  next.addEventListener("click", e => {
+    e.preventDefault();
+    const i = mine.find(i => !state.v[cards[i].key] && visible(i));
+    if (i !== undefined) { cards[i].card.scrollIntoView({ block: "center" }); select(i); }
+  });
+  const firstFlag = mine.find(i => !cards[i].c.recommended);
+  sub.append(next);
+  if (firstFlag !== undefined) {
+    const flagged = el("a", { href: "#", title: "Jump to this section's flagged crops", text: "flagged" });
+    flagged.addEventListener("click", e => { e.preventDefault(); cards[firstFlag].card.scrollIntoView({ block: "center" }); select(firstFlag); });
+    sub.append(flagged);
+  }
+  nav.append(navLink, sub);
+  navItems.push({ link: navLink, count, mine, panel });
+});
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (!entry.isIntersecting) return;
+    navItems.forEach(n => n.link.classList.toggle("active", n.panel === entry.target));
+  });
+}, { rootMargin: "-40% 0px -55% 0px" });
+navItems.forEach(n => observer.observe(n.panel));
+
+function paint(i) {
+  const { card, key } = cards[i];
+  const v = state.v[key];
+  if (v) { card.dataset.v = v; card.querySelector(".verdict").textContent = VLABEL[v]; }
+  else { delete card.dataset.v; }
+}
+function visible(i) { return !cards[i].card.classList.contains("hidden"); }
+function select(i) {
+  if (selected >= 0) cards[selected].card.classList.remove("selected");
+  selected = i;
+  if (i < 0) return;
+  cards[i].card.classList.add("selected");
+  cards[i].card.focus({ preventScroll: true });
+  const box = cards[i].card.getBoundingClientRect();
+  if (box.top < header.offsetHeight + 8) window.scrollBy(0, box.top - header.offsetHeight - 8);
+  else if (box.bottom > window.innerHeight) window.scrollBy(0, box.bottom - window.innerHeight + 8);
+}
+function step(d) {
+  let i = selected;
+  do { i += d; } while (i >= 0 && i < cards.length && !visible(i));
+  if (i >= 0 && i < cards.length) select(i);
+}
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if ((e.key === "o" || e.key === "O") && !e.ctrlKey && !e.metaKey && !e.altKey) { setOutline(!showOutline); return; }
+  if (e.key === "ArrowRight") { step(1); e.preventDefault(); return; }
+  if (e.key === "ArrowLeft") { step(-1); e.preventDefault(); return; }
+  if (selected < 0) return;
+  const n = Number(e.key);
+  if (e.key === "0") { delete state.v[cards[selected].key]; }
+  else if (n >= 1 && n <= DATA.verdicts.length) { state.v[cards[selected].key] = DATA.verdicts[n - 1][0]; }
+  else return;
+  save(); paint(selected); summarise(); applyFilter(false);
+  if (e.key !== "0") step(1);
+});
+
+function summarise() {
+  const groups = { rec: {}, flagged: {} };
+  let done = 0;
+  cards.forEach(({ key, c }) => {
+    const v = state.v[key];
+    if (!v) return;
+    done++;
+    const g = c.recommended ? groups.rec : groups.flagged;
+    g[v] = (g[v] || 0) + 1;
+  });
+  document.getElementById("s-done").textContent = done;
+  navItems.forEach(n => {
+    const reviewed = n.mine.filter(i => state.v[cards[i].key]).length;
+    n.count.textContent = reviewed + " / " + n.mine.length + " reviewed";
+    n.count.classList.toggle("complete", reviewed === n.mine.length);
+  });
+  document.getElementById("s-total").textContent = cards.length;
+  const recDone = Object.values(groups.rec).reduce((a, b) => a + b, 0);
+  document.getElementById("s-prec").textContent = recDone ? Math.round(100 * (groups.rec.good || 0) / recDone) + "% of " + recDone : "–";
+  const missed = Object.values(state.missed).filter(v => v !== "").reduce((a, b) => a + Number(b), 0);
+  const t = el("table");
+  const hr = el("tr"); hr.append(el("th", { text: "" }));
+  DATA.verdicts.forEach(v => hr.append(el("th", { text: v[1] })));
+  t.append(hr);
+  [["Crop-recommended", groups.rec], ["Flagged", groups.flagged]].forEach(([name, g]) => {
+    const r = el("tr"); r.append(el("td", { text: name }));
+    DATA.verdicts.forEach(v => r.append(el("td", { text: g[v[0]] || 0 })));
+    t.append(r);
+  });
+  const box = document.getElementById("summary");
+  box.replaceChildren(t, el("p", { text: "Tubules with no crop (entered estimates): " + missed }));
+}
+
+const filter = document.getElementById("filter");
+function applyFilter(reset = true) {
+  const f = filter.value;
+  cards.forEach(({ card, key }) => {
+    const show = f === "all" || (f === "unreviewed" && !state.v[key]) || (f === "rec" && card.dataset.rec === "1") || (f === "flagged" && card.dataset.rec === "0");
+    if (f === "unreviewed" && !reset && key === cards[selected]?.key) return;
+    card.classList.toggle("hidden", !show);
+  });
+}
+filter.addEventListener("change", () => applyFilter());
+document.getElementById("size").addEventListener("input", e => document.body.style.setProperty("--thumb", e.target.value + "px"));
+
+document.getElementById("export").addEventListener("click", () => {
+  const rows = [["source", "source_sha256", "label", "instance_id", "crop_recommended", "flags", "verdict", "section_missed_estimate"]];
+  cards.forEach(({ key, c, src }) => rows.push([src.name, src.sha256, c.label, c.instance_id, c.recommended, c.flags.join(";"), state.v[key] || "", state.missed[src.folder] ?? ""]));
+  const csv = rows.map(r => r.map(x => { const s = String(x ?? ""); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\n");
+  const a = el("a", { href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })), download: DATA.title + "_verdicts.csv" });
+  document.body.append(a); a.click(); a.remove();
+});
+summarise();
+</script>
+</body>
+</html>

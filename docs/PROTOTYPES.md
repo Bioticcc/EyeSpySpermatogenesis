@@ -1,9 +1,15 @@
-# Competing prototypes — proposed, not implemented
+# Prototype implementation and planned comparisons
 
-All experiments require a reviewed, owner-approved plan after Phase 1 image
-characterization. Inputs share the [analysis contract](ARCHITECTURE.md); compare
-methods on the same [grouped pilot](EVALUATION_PLAN.md). No thresholds, overlap
-sizes, physical dimensions, stage grouping, or winner have been selected.
+Owner update (2026-11-06): D2 overview localization then native crop retrieval
+is the initial whole-section route, superseding the 2026-11-04 D1 choice. The
+owner authorized implementation before the test slice arrives. A restricted I/O
+and classical-candidate prototype now exists; see
+[OVERVIEW_PROTOTYPE.md](OVERVIEW_PROTOTYPE.md) for its concrete plan, dependencies,
+commands, masks' provisional status and remaining validation. This is not a
+scientifically selected segmentation method or authorization for staging.
+
+The comparisons below still require real pilot data and agreed evaluation
+criteria. No overview factor, PAS threshold, physical cutoff or winner is validated.
 
 ## Tubule-isolation candidates
 
@@ -32,14 +38,14 @@ in a fully headless JVM. Test that behavior before promising unattended operatio
 
 ## Whole-section strategies, orthogonal to A/B/C
 
-Run a practical cross-comparison, rather than mistaking a reader or tiling choice
-for a segmentation method. Start with A-D1 and B-D1, then compare D2/D3 using the
-strongest feasible isolation method and the same tissue coverage.
+Run a practical cross-comparison, keeping reader/localization strategy separate
+from segmentation method. Start with provisional A-D2, compare B-D2/D3, and
+retain D1 as a fallback comparison over the same tissue coverage.
 
 | ID | Hypothesis / inputs / dependencies | Expected outputs and comparison | Advantages, risks and decision rule |
 |---|---|---|---|
-| D1 — direct native-detail tiling | Overlapping 40×-equivalent regions provide enough context. Requires verified native-detail source, reader, tissue coverage, configurable tile/overlap/halo and bounded resources. | Reconciled whole-section instances and coverage map; complete recovery, misses, duplicates, seams, time and peak RAM. | Direct detail and simpler level mapping; repeated decoding, edge truncation and reconciliation cost. Baseline unless another strategy improves measured utility/resources. |
-| D2 — coarse localization then retrieval | Lower-resolution candidates reduce expensive high-resolution work without materially reducing usable-crop recall. Requires a suitable pyramid level or documented derived overview, calibrated transforms and genuine native-detail retrieval. | Coarse proposals plus corresponding native crops/masks and lineage; end-to-end recall including localization misses, complete crops, duplicates, transform error, time/RAM and preprocessing cost. | Potential efficiency; weak boundaries or small/abnormal tubules may vanish. Select only if measured recall/resource tradeoff meets pre-agreed limits. Never upscale coarse pixels as final detail. |
+| D1 — direct native-detail tiling | Overlapping 40×-equivalent regions provide enough context. Requires verified native-detail source, reader, tissue coverage, configurable tile/overlap/halo and bounded resources. | Reconciled whole-section instances and coverage map; complete recovery, misses, duplicates, seams, time and peak RAM. | Direct detail and simpler level mapping; repeated decoding, edge truncation and reconciliation cost. Fallback comparison; tiles must accommodate the full object plus context. |
+| D2 — coarse localization then retrieval | Lower-resolution candidates reduce expensive high-resolution work without materially reducing usable-crop recall. Requires a suitable pyramid level or documented derived overview, calibrated transforms and genuine native-detail retrieval. | Coarse proposals plus corresponding native crops/masks and lineage; end-to-end recall including localization misses, complete crops, duplicates, transform error, time/RAM and preprocessing cost. | Potential efficiency; weak boundaries or small/abnormal tubules may vanish. Owner-selected initial prototype; retain only if measured recall/resources meet agreed limits. Never upscale coarse pixels as final detail. |
 | D3 — whole-slide application | QuPath's reader/classifier/ROI tools reduce custom integration work. Needs an opening-tested source, frozen QuPath project/classifier and export script. | Source-space ROIs, native crops, masks, quality and coverage; same D1 metrics plus export fidelity and unattended reliability. | Existing slide context; external runtime, project conventions, coordinate/export checks and licensing work. Select if practical integration is more reliable than library orchestration. |
 
 Folder images bypass whole-slide localization but use the same isolation/output

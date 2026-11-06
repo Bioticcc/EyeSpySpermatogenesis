@@ -1,16 +1,21 @@
 # Agent guidance
 
 - Explain clearly, simply, and concisely. Leave concrete handoff notes when needed.
-- Current assignment: owner authorized the overview-first prototype on 2026-11-06,
-  superseding the grid-first starting route. Follow `docs/OVERVIEW_PROTOTYPE.md`
-  and `docs/PHASE1_IO_VALIDATION.md`. A first 13-file real-image trial is recorded
-  in `docs/VALIDATION.md`: bounded JPEG reads work on sampled regions, but the
-  initial threshold/fill/watershed merges many tubules and is not an accepted
-  detector. Scientific validation/native refinement remain open; no staging.
-- Before revising separation, read `docs/SEPARATION_FAILURE_ANALYSIS.md`. The
-  2026-11-06 diagnostic ablations preserved production code: threshold already
-  joins tissue, global hole filling erases internal spaces, and watershed uses
-  only mask distance. More regions alone is not evidence of improved tubule recovery.
+- Current state (2026-11-06): tubule extraction uses the membrane-network
+  method, `--method membrane` (v0.5, `segmentation/membrane.py`). Read
+  `docs/EXTRACTION_STATUS.md` first: it gives the review results, output
+  locations, the command for full-resolution crops, and known errors. The
+  failed v0.1 darkness method stays available as `--method darkness-v0.1`; why
+  it failed is in `docs/SEPARATION_FAILURE_ANALYSIS.md`.
+- Extraction quality is measured by the owner's click reviews
+  (`segmentation/review_sheet.py`). Never claim accuracy beyond those reviews.
+  Tune only on reviewed sections, and name the held-out sections when
+  reporting. When handing over a review page, tell the owner to save the
+  exported CSV in that run's `outputs/tubule-review-*/` folder.
+- Next (owner, 2026-11-06): staging trial runs, starting with how to use the
+  existing annotations. This is planning and trials only; record the method
+  and taxonomy decisions in `docs/DECISIONS.md` before building a staging
+  pipeline. See `docs/STAGING_STRATEGY.md`.
 - Confirmed: **mouse, PAS, FFPE, 40× native analysis detail**. PAS counterstain,
   acquisition convention, physical spacing, and all other unconfirmed fields in
   `docs/EXPERIMENTAL_SPECIFICATIONS.md` remain PENDING CONFIRMATION.

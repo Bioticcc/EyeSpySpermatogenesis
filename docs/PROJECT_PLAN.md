@@ -16,8 +16,12 @@ Phase 0 is complete. Phase 1 real-image characterization and I/O validation rema
 open. The owner authorized an overview-first prototype before the test TIFF
 arrives: a restricted segment reader, streamed overview, classical provisional
 candidates, native crops, projected seed masks and provenance now exist with
-synthetic tests. Native boundary refinement, batch adapters, staging and a GUI
-remain future work. See [the prototype plan](OVERVIEW_PROTOTYPE.md) and
+synthetic tests. On real sections, the membrane-network method (v0.5) now
+gives one-tubule crops that the owner judged good in about 9 of 10 recommended
+cases on held-out sections. See [extraction status](EXTRACTION_STATUS.md).
+Native boundary refinement, batch adapters and a GUI remain future work. The
+owner's next step (2026-11-06) is staging trials using existing annotations.
+See [the prototype plan](OVERVIEW_PROTOTYPE.md) and
 [the Phase 1 guide](PHASE1_IO_VALIDATION.md).
 The clean main is published on GitHub, with the original project preserved on
 legacy; see [GIT_MIGRATION.md](GIT_MIGRATION.md).

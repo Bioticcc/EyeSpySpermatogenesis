@@ -32,6 +32,11 @@ VERDICTS = [
     ("partial", "Partial / edge", "Tubule cut by the section edge or damaged"),
     ("not_tubule", "Not a tubule", "Interstitium, capsule, vessel, debris"),
     ("unsure", "Unsure", "Cannot decide from the crop"),
+    (
+        "spill",
+        "Outline spills",
+        "One tubule, but the outline leaks into background and spoils the crop",
+    ),
 ]
 
 

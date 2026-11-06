@@ -9,125 +9,159 @@
   --ink: #173331; --muted: #617370; --soft: #e5ece8; --paper: #ffffff;
   --canvas: #f3f6f3; --green-950: #102b2b; --green-800: #184b47;
   --green-700: #1e655d; --green-500: #3f8f81; --green-100: #dcece6;
-  --amber: #a15d14; --amber-soft: #fff2da; --red: #a23b3b; --red-soft: #fde8e5;
-  --blue: #336b89; --line: #dce5e1; --shadow: 0 12px 35px rgba(16,43,43,.07);
-  --radius-panel: 14px; --radius-control: 8px;
+  --amber: #a15d14; --red: #a23b3b; --blue: #336b89; --line: #dce5e1;
+  --shadow: 0 8px 24px rgba(16,43,43,.06);
+  --radius-panel: 12px; --radius-control: 8px;
 }
 * { box-sizing: border-box; }
 body { margin: 0; color: var(--ink); font: 14px/1.45 Inter, ui-sans-serif,
-  system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: radial-gradient(circle at top right, #e3efe9, transparent 40%), var(--canvas); }
-header { background: var(--green-950); color: #fff; padding: 14px 20px;
-  position: sticky; top: 0; z-index: 5; box-shadow: var(--shadow); }
-header h1 { font: 500 22px Georgia, serif; margin: 0 0 6px; }
-header .row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
-header .stat { font-size: 13px; color: #cfe2dc; }
-header .stat b { font: 500 17px Georgia, serif; color: #fff; }
-button, select { font: inherit; border-radius: var(--radius-control);
+  system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--canvas); }
+button, select { font: inherit; font-size: 13px; border-radius: var(--radius-control);
   border: 1px solid var(--line); background: var(--paper); color: var(--ink);
-  padding: 5px 10px; cursor: pointer; }
-button.primary { background: var(--green-700); border-color: var(--green-700); color: #fff; }
-button:focus-visible, .card:focus-visible { outline: 3px solid var(--green-500); outline-offset: 2px; }
-.keys { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.keys span { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
-  border-radius: 99px; padding: 2px 10px 2px 4px; font-size: 13px; color: #fff; cursor: help; }
-.keys kbd { background: #fff; color: var(--green-950); margin-right: 5px; }
-.layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); align-items: start; }
-aside { position: sticky; top: var(--head, 110px); max-height: calc(100vh - var(--head, 110px));
-  overflow-y: auto; background: var(--green-800); color: #fff; padding: 12px 10px 24px; }
-aside .eyebrow { color: #bcd8cf; padding: 0 6px 6px; }
-aside a { display: block; color: #fff; text-decoration: none; border-radius: 8px; padding: 6px 8px; }
-aside a:hover, aside a.active { background: rgba(255,255,255,.12); }
-aside .name { font-size: 13px; overflow-wrap: anywhere; }
-aside .count { font-size: 12px; color: #bcd8cf; }
-aside .count.complete { color: #9fe0c8; }
-aside .sub { display: flex; gap: 4px; padding: 0 8px 6px; }
-aside .sub a { display: inline; padding: 1px 6px; font-size: 12px; color: #d6e8e2;
-  border: 1px solid rgba(255,255,255,.2); border-radius: 99px; }
-main { padding: 16px 20px 80px; max-width: 1700px; min-width: 0; }
-main > section { scroll-margin-top: calc(var(--head, 110px) + 10px); }
-.eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 11px;
-  color: var(--green-700); font-weight: 600; }
-.panel { background: var(--paper); border: 1px solid var(--line);
-  border-radius: var(--radius-panel); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 18px; }
-.panel h2 { font: 500 19px Georgia, serif; margin: 2px 0 8px; }
-.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 4px 18px; padding: 0; margin: 6px 0 0; list-style: none; }
+  padding: 4px 10px; cursor: pointer; }
+button:focus-visible, .card:focus-visible, summary:focus-visible { outline: 3px solid var(--green-500); outline-offset: 2px; }
+kbd { display: inline-block; min-width: 18px; text-align: center; background: var(--soft);
+  border-radius: 4px; padding: 0 4px; font: 600 12px/18px ui-monospace, monospace; }
+
+/* Header: two compact rows */
+header { background: var(--green-950); color: #fff; padding: 10px 20px 10px;
+  position: sticky; top: 0; z-index: 5; box-shadow: var(--shadow); }
+.bar, .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.tools { margin-top: 8px; }
+.spacer { flex: 1; }
+header h1 { font: 500 20px Georgia, serif; margin: 0; }
+header .run { color: #9fbdb4; font-size: 13px; }
+header .stat { font-size: 13px; color: #cfe2dc; }
+header .stat b { font: 500 16px Georgia, serif; color: #fff; }
+header button.primary { background: var(--green-500); border-color: var(--green-500); color: #fff; }
+header .control { background: transparent; color: #e3efe9; border-color: rgba(255,255,255,.25); }
+header select.control option { color: var(--ink); }
+header label.stat { display: inline-flex; align-items: center; gap: 6px; }
+header input[type=range] { width: 90px; accent-color: var(--green-500); }
+.keys { display: flex; flex-wrap: wrap; gap: 5px; }
+.keys span { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: #e3efe9;
+  padding: 2px 9px 2px 3px; border-radius: 99px; background: rgba(255,255,255,.08); cursor: help; }
+.keys kbd { background: #fff; color: var(--green-950); }
+
+/* Sidebar */
+.layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); align-items: start; }
+aside { position: sticky; top: var(--head, 90px); max-height: calc(100vh - var(--head, 90px));
+  overflow-y: auto; background: var(--green-800); color: #fff; padding: 12px 8px 24px; }
+aside .label { text-transform: uppercase; letter-spacing: .08em; font-size: 11px; font-weight: 600;
+  color: #bcd8cf; padding: 0 8px 6px; }
+.navitem { border-radius: 8px; padding: 6px 8px 7px; margin-bottom: 2px; }
+.navitem.active, .navitem:hover { background: rgba(255,255,255,.1); }
+.navitem .top { display: flex; justify-content: space-between; gap: 6px; color: #fff;
+  text-decoration: none; font-size: 13px; }
+.navitem .top span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.navitem .count { color: #bcd8cf; font-size: 12px; white-space: nowrap; }
+.navitem .count.complete { color: #9fe0c8; }
+.progress { height: 3px; background: rgba(255,255,255,.15); border-radius: 2px; margin: 4px 0 5px; }
+.progress div { height: 100%; width: 0; background: #9fe0c8; border-radius: 2px; }
+.navitem .links { display: flex; gap: 10px; font-size: 12px; }
+.navitem .links a { color: #cfe2dc; text-decoration: none; }
+.navitem .links a:hover { color: #fff; text-decoration: underline; }
+
+/* Main */
+main { padding: 14px 20px 80px; min-width: 0; }
+main > section { scroll-margin-top: calc(var(--head, 90px) + 10px); }
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-panel);
+  box-shadow: var(--shadow); padding: 12px 16px; margin-bottom: 14px; }
+details.panel summary { cursor: pointer; font: 500 15px Georgia, serif; color: var(--green-700); }
+details.panel[open] summary { margin-bottom: 8px; }
+.help { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 8px 28px; }
+.help ul { margin: 0; padding-left: 18px; }
+.help li { margin-bottom: 3px; }
+.legend { list-style: none; padding: 0 !important; }
 .legend span { color: var(--muted); }
-kbd { background: var(--soft); border-radius: 4px; padding: 0 5px; font-size: 12px; }
-table { border-collapse: collapse; font-size: 13px; }
-td, th { padding: 3px 10px; border-bottom: 1px solid var(--line); text-align: right; }
+.help .save { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+table { border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+td, th { padding: 2px 8px; border-bottom: 1px solid var(--line); text-align: right; font-weight: 500; }
+th { color: var(--muted); font-size: 12px; }
 th:first-child, td:first-child { text-align: left; }
-.section-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
-.section-head a { color: var(--blue); }
-.missed { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
-.missed input { width: 64px; font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; }
+
+.section-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px; }
+.section-head h2 { font: 500 18px Georgia, serif; margin: 0; }
+.section-head .meta { color: var(--muted); font-size: 12.5px; }
+.section-tools { display: inline-flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; color: var(--muted); font-size: 13px; }
+.section-tools a { color: var(--blue); }
+.section-tools input { width: 56px; font: inherit; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; }
+
+/* Cards */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb, 190px), 1fr)); gap: 10px; margin-top: 10px; }
 .card { background: var(--paper); border: 2px solid var(--line); border-radius: 10px;
   overflow: hidden; cursor: pointer; position: relative; }
+.card.flagged { border-style: dashed; }
+.card.selected { border-color: var(--green-500) !important; box-shadow: 0 0 0 3px var(--green-100); }
 .card .thumb { position: relative; }
 .card img { width: 100%; aspect-ratio: 1; object-fit: contain; background: #eef1ef; display: block; }
 .card img.outline { position: absolute; inset: 0; background: transparent; pointer-events: none; }
 body.no-outline .card img.outline { display: none; }
-.savehint { font-size: 12px; color: #cfe2dc; overflow-wrap: anywhere; }
-.savehint code { color: #fff; }
 .card .noimg { aspect-ratio: 1; display: grid; place-items: center; color: var(--muted); font-size: 12px; padding: 8px; text-align: center; }
-.card .meta { padding: 4px 7px 6px; font-size: 12px; }
+.card .meta { display: flex; justify-content: space-between; gap: 6px; padding: 3px 7px 5px; font-size: 12px; }
 .card .id { font-weight: 600; }
-.card .flags { color: var(--amber); }
-.card.flagged { border-style: dashed; }
-.card.selected { border-color: var(--green-500); box-shadow: 0 0 0 3px var(--green-100); }
-.card .verdict { position: absolute; top: 6px; left: 6px; padding: 1px 7px; border-radius: 99px;
-  font-size: 12px; font-weight: 600; color: #fff; display: none; }
+.card .flags { color: var(--amber); text-align: right; }
+.card .verdict { position: absolute; z-index: 2; top: 6px; left: 6px; padding: 2px 8px; border-radius: 99px;
+  font-size: 12px; font-weight: 600; color: #fff; display: none; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
 .card[data-v] .verdict { display: block; }
 .card[data-v="good"] { border-color: var(--green-700); }
 .card[data-v="good"] .verdict { background: var(--green-700); }
-.card[data-v="merged"] .verdict, .card[data-v="split"] .verdict { background: var(--red); }
-.card[data-v="partial"] .verdict, .card[data-v="unsure"] .verdict { background: var(--amber); }
-.card[data-v="not_tubule"] .verdict { background: var(--muted); }
 .card[data-v="merged"], .card[data-v="split"] { border-color: var(--red); }
+.card[data-v="merged"] .verdict, .card[data-v="split"] .verdict { background: var(--red); }
+.card[data-v="partial"], .card[data-v="unsure"], .card[data-v="spill"] { border-color: var(--amber); }
+.card[data-v="partial"] .verdict, .card[data-v="unsure"] .verdict, .card[data-v="spill"] .verdict { background: var(--amber); }
+.card[data-v="not_tubule"] { border-color: var(--muted); }
+.card[data-v="not_tubule"] .verdict { background: var(--muted); }
 .hidden { display: none !important; }
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { position: static; max-height: none; } }
 @media (max-width: 600px) { main, header { padding-left: 16px; padding-right: 16px; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>Tubule crop review · __TITLE__</h1>
-  <div class="row">
-    <span class="stat">Reviewed <b id="s-done">0</b> / <b id="s-total">0</b></span>
-    <span class="stat">Recommended crops good: <b id="s-prec">–</b></span>
+  <div class="bar">
+    <h1>Tubule crop review</h1>
+    <span class="run">__TITLE__</span>
+    <span class="spacer"></span>
+    <span class="stat"><b id="s-done">0</b> / <b id="s-total">0</b> reviewed</span>
+    <span class="stat">Recommended good <b id="s-prec">–</b></span>
+    <button class="primary" id="export">Export CSV</button>
+  </div>
+  <div class="tools">
+    <div class="keys" id="keys"></div>
+    <span class="spacer"></span>
+    <button class="control" id="outline-toggle" title="Show or hide the yellow outline (key O)">Outline on</button>
     <label class="stat">Show
-      <select id="filter">
+      <select class="control" id="filter">
         <option value="all">all</option>
         <option value="unreviewed">unreviewed</option>
-        <option value="rec">crop-recommended</option>
+        <option value="rec">recommended</option>
         <option value="flagged">flagged</option>
       </select></label>
     <label class="stat">Size <input id="size" type="range" min="120" max="384" value="190"></label>
-    <button id="outline-toggle" title="Show or hide the yellow outline (key O)">Outline: on</button>
-    <button class="primary" id="export">Export CSV</button>
-    <span class="savehint">Save the export in <code id="savedir"></code></span>
   </div>
-  <div class="keys" id="keys"></div>
 </header>
 <div class="layout">
-<aside><div class="eyebrow">Sections</div><nav id="nav"></nav></aside>
+<aside><div class="label">Sections</div><nav id="nav"></nav></aside>
 <main>
-  <section class="panel">
-    <div class="eyebrow">How to review</div>
-    <h2>Does the yellow outline trace one tubule?</h2>
-    <p>The yellow line is the program's outline of the candidate. Judge the outline, not the neighbours visible in the corners.
-      Click a crop (or use <kbd>←</kbd> <kbd>→</kbd>), then press a number. The next crop is selected automatically.
-      Press <kbd>0</kbd> to clear. Dashed borders are candidates the algorithm already flagged; review them too, so the flags themselves can be checked.
-      For each section, also estimate how many tubules got <i>no</i> crop at all (open the overview overlay and look for tubules without a number). This is not the "Not a tubule" verdict. Verdicts are saved in this browser until you export.</p>
-    <ul class="legend">__LEGEND__</ul>
-  </section>
-  <section class="panel">
-    <div class="eyebrow">Running totals</div>
-    <div id="summary"></div>
-  </section>
+  <details class="panel" id="help">
+    <summary>How to review · running totals</summary>
+    <div class="help">
+      <div>
+        <ul>
+          <li>Judge the <b>yellow outline</b>, not the neighbours in the corners. Press <kbd>O</kbd> to hide it.</li>
+          <li>Click a crop or use <kbd>←</kbd> <kbd>→</kbd>, then press a number; the next crop is selected. <kbd>0</kbd> clears.</li>
+          <li>Dashed borders are flagged crops. Review them too, so the flags can be checked.</li>
+          <li>Per section, estimate tubules with <i>no</i> crop at all (use the overview link).</li>
+        </ul>
+        <ul class="legend">__LEGEND__</ul>
+      </div>
+      <div>
+        <div id="summary"></div>
+        <p class="save">Verdicts stay in this browser until exported. Save the export in <code id="savedir"></code></p>
+      </div>
+    </div>
+  </details>
   <div id="sections"></div>
 </main>
 </div>
@@ -137,7 +171,12 @@ const KEY = "tubule-review:" + location.pathname;
 let state = { v: {}, missed: {} };
 try { state = Object.assign(state, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
 function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function pref(name, fallback) { try { return localStorage.getItem("tubule-review:" + name) ?? fallback; } catch (e) { return fallback; } }
+function setPref(name, value) { try { localStorage.setItem("tubule-review:" + name, value); } catch (e) {} }
 const VLABEL = Object.fromEntries(DATA.verdicts.map(v => [v[0], v[1]]));
+const FLAG = { small_vs_section_median: "small", large_vs_section_median: "large",
+  irregular_shape: "irregular", elongated: "elongated", section_edge_contact: "edge",
+  source_border_contact: "image edge" };
 const cards = [];
 let selected = -1;
 
@@ -152,48 +191,47 @@ function el(tag, attrs = {}, ...kids) {
 
 const keys = document.getElementById("keys");
 DATA.verdicts.forEach((v, i) => keys.append(el("span", { title: v[2] }, el("kbd", { text: String(i + 1) }), v[1])));
-keys.append(el("span", { title: "Clear the selected crop's verdict" }, el("kbd", { text: "0" }), "Clear"));
-keys.append(el("span", { title: "Show or hide the yellow outline" }, el("kbd", { text: "O" }), "Outline"));
-document.getElementById("savedir").textContent = decodeURIComponent(location.pathname.replace(/[^/]*$/, ""));
+const folder = decodeURIComponent(location.pathname.replace(/[^/]*$/, ""));
+document.getElementById("savedir").textContent = folder;
+document.getElementById("export").title = "Save the file in " + folder;
+
 const outlineButton = document.getElementById("outline-toggle");
-let showOutline = true;
-try { showOutline = localStorage.getItem("tubule-review:outline") !== "off"; } catch (e) {}
+let showOutline = pref("outline", "on") !== "off";
 function setOutline(on) {
   showOutline = on;
   document.body.classList.toggle("no-outline", !on);
-  outlineButton.textContent = "Outline: " + (on ? "on" : "off");
-  try { localStorage.setItem("tubule-review:outline", on ? "on" : "off"); } catch (e) {}
+  outlineButton.textContent = on ? "Outline on" : "Outline off";
+  setPref("outline", on ? "on" : "off");
 }
 outlineButton.addEventListener("click", () => setOutline(!showOutline));
 setOutline(showOutline);
+
+const help = document.getElementById("help");
+help.open = pref("help", "closed") === "open";
+help.addEventListener("toggle", () => setPref("help", help.open ? "open" : "closed"));
+
 const header = document.querySelector("header");
 function headerHeight() { document.body.style.setProperty("--head", header.offsetHeight + "px"); }
 headerHeight(); window.addEventListener("resize", headerHeight);
 
 const nav = document.getElementById("nav");
 const navItems = [];
-function jump(target, cardIndex) {
-  target.scrollIntoView({ block: "start" });
-  if (cardIndex !== undefined) select(cardIndex);
-}
 const root = document.getElementById("sections");
+function reveal(i) { cards[i].card.scrollIntoView({ block: "center" }); select(i); }
 DATA.sources.forEach((src, si) => {
   const panel = el("section", { class: "panel", id: "src-" + si });
-  const head = el("div", { class: "section-head" });
-  const title = el("div");
-  title.append(el("div", { class: "eyebrow", text: src.folder + " · " + (src.method || "") }));
-  title.append(el("h2", { text: src.name }));
-  head.append(title);
-  const right = el("div", { class: "missed" });
-  const link = el("a", { href: src.overlay, target: "_blank", text: "Open overview overlay" });
-  const input = el("input", { type: "number", min: "0", placeholder: "?" });
-  input.value = state.missed[src.folder] ?? "";
-  input.addEventListener("input", () => { state.missed[src.folder] = input.value; save(); });
-  right.append(link, el("span", { text: " · tubules with no crop ≈" }), input);
-  head.append(right);
-  panel.append(head);
   const rec = src.candidates.filter(c => c.recommended).length;
-  panel.append(el("div", { class: "eyebrow", text: `${src.candidates.length} candidates · ${rec} crop-recommended · ${src.candidates.length - rec} flagged` }));
+  const head = el("div", { class: "section-head" });
+  head.append(el("div", {},
+    el("h2", { text: src.name }),
+    el("div", { class: "meta", text: `${src.folder} · ${src.candidates.length} candidates · ${rec} recommended · ${src.candidates.length - rec} flagged` })));
+  const input = el("input", { type: "number", min: "0", placeholder: "?", title: "Estimated tubules in this section with no crop at all" });
+  input.value = state.missed[src.folder] ?? "";
+  input.addEventListener("input", () => { state.missed[src.folder] = input.value; save(); summarise(); });
+  head.append(el("div", { class: "section-tools" },
+    el("a", { href: src.overlay, target: "_blank", text: "Overview" }),
+    el("label", {}, "No crop ≈ ", input)));
+  panel.append(head);
   const grid = el("div", { class: "grid" });
   src.candidates.forEach(c => {
     const key = src.folder + "/" + c.label;
@@ -205,11 +243,11 @@ DATA.sources.forEach((src, si) => {
       const thumb = el("div", { class: "thumb" }, el("img", { src: c.thumbnail, loading: "lazy", alt: "candidate " + c.label }));
       if (c.outline) thumb.append(el("img", { class: "outline", src: c.outline, loading: "lazy", alt: "" }));
       card.append(thumb);
+    } else {
+      card.append(el("div", { class: "noimg", text: "No thumbnail (" + (c.export_status || "none") + ")" }));
     }
-    else card.append(el("div", { class: "noimg", text: "No thumbnail (" + (c.export_status || "none") + ")" }));
-    const meta = el("div", { class: "meta" });
-    meta.append(el("span", { class: "id", text: "#" + c.label + " " }));
-    if (c.flags.length) meta.append(el("span", { class: "flags", text: c.flags.join(", ") }));
+    const meta = el("div", { class: "meta" }, el("span", { class: "id", text: "#" + c.label }));
+    if (c.flags.length) meta.append(el("span", { class: "flags", title: c.flags.join(", "), text: c.flags.map(f => FLAG[f] || f).join(" · ") }));
     card.append(meta);
     const index = cards.length;
     card.addEventListener("click", () => select(index));
@@ -219,32 +257,35 @@ DATA.sources.forEach((src, si) => {
   });
   panel.append(grid);
   root.append(panel);
+
   const mine = cards.map((x, i) => i).filter(i => cards[i].src === src);
-  const navLink = el("a", { href: "#src-" + si });
-  const count = el("div", { class: "count" });
-  navLink.append(el("div", { class: "name", text: src.name.replace(/\.ome\.tiff?$|\.tiff?$/i, "") }), count);
-  navLink.addEventListener("click", e => { e.preventDefault(); jump(panel); });
-  const sub = el("div", { class: "sub" });
-  const next = el("a", { href: "#", title: "Select the first crop in this section without a verdict" , text: "next unreviewed" });
+  const item = el("div", { class: "navitem" });
+  const count = el("span", { class: "count" });
+  const bar = el("div");
+  const top = el("a", { class: "top", href: "#src-" + si }, el("span", { text: src.name.replace(/\.ome\.tiff?$|\.tiff?$/i, ""), title: src.name }), count);
+  top.addEventListener("click", e => { e.preventDefault(); panel.scrollIntoView({ block: "start" }); });
+  const links = el("div", { class: "links" });
+  const next = el("a", { href: "#", text: "Next unreviewed", title: "Select this section's first crop without a verdict" });
   next.addEventListener("click", e => {
     e.preventDefault();
     const i = mine.find(i => !state.v[cards[i].key] && visible(i));
-    if (i !== undefined) { cards[i].card.scrollIntoView({ block: "center" }); select(i); }
+    if (i !== undefined) reveal(i);
   });
+  links.append(next);
   const firstFlag = mine.find(i => !cards[i].c.recommended);
-  sub.append(next);
   if (firstFlag !== undefined) {
-    const flagged = el("a", { href: "#", title: "Jump to this section's flagged crops", text: "flagged" });
-    flagged.addEventListener("click", e => { e.preventDefault(); cards[firstFlag].card.scrollIntoView({ block: "center" }); select(firstFlag); });
-    sub.append(flagged);
+    const flagged = el("a", { href: "#", text: "Flagged", title: "Jump to this section's flagged crops" });
+    flagged.addEventListener("click", e => { e.preventDefault(); reveal(firstFlag); });
+    links.append(flagged);
   }
-  nav.append(navLink, sub);
-  navItems.push({ link: navLink, count, mine, panel });
+  item.append(top, el("div", { class: "progress" }, bar), links);
+  nav.append(item);
+  navItems.push({ item, count, bar, mine, panel });
 });
 const observer = new IntersectionObserver(entries => {
   entries.forEach(entry => {
     if (!entry.isIntersecting) return;
-    navItems.forEach(n => n.link.classList.toggle("active", n.panel === entry.target));
+    navItems.forEach(n => n.item.classList.toggle("active", n.panel === entry.target));
   });
 }, { rootMargin: "-40% 0px -55% 0px" });
 navItems.forEach(n => observer.observe(n.panel));
@@ -252,7 +293,7 @@ navItems.forEach(n => observer.observe(n.panel));
 function paint(i) {
   const { card, key } = cards[i];
   const v = state.v[key];
-  if (v) { card.dataset.v = v; card.querySelector(".verdict").textContent = VLABEL[v]; }
+  if (v) { card.dataset.v = v; card.querySelector(".verdict").textContent = VLABEL[v] || v; }
   else { delete card.dataset.v; }
 }
 function visible(i) { return !cards[i].card.classList.contains("hidden"); }
@@ -273,7 +314,8 @@ function step(d) {
 }
 document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
-  if ((e.key === "o" || e.key === "O") && !e.ctrlKey && !e.metaKey && !e.altKey) { setOutline(!showOutline); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === "o" || e.key === "O") { setOutline(!showOutline); return; }
   if (e.key === "ArrowRight") { step(1); e.preventDefault(); return; }
   if (e.key === "ArrowLeft") { step(-1); e.preventDefault(); return; }
   if (selected < 0) return;
@@ -296,12 +338,13 @@ function summarise() {
     g[v] = (g[v] || 0) + 1;
   });
   document.getElementById("s-done").textContent = done;
+  document.getElementById("s-total").textContent = cards.length;
   navItems.forEach(n => {
     const reviewed = n.mine.filter(i => state.v[cards[i].key]).length;
-    n.count.textContent = reviewed + " / " + n.mine.length + " reviewed";
+    n.count.textContent = reviewed + "/" + n.mine.length;
     n.count.classList.toggle("complete", reviewed === n.mine.length);
+    n.bar.style.width = (100 * reviewed / n.mine.length) + "%";
   });
-  document.getElementById("s-total").textContent = cards.length;
   const recDone = Object.values(groups.rec).reduce((a, b) => a + b, 0);
   document.getElementById("s-prec").textContent = recDone ? Math.round(100 * (groups.rec.good || 0) / recDone) + "% of " + recDone : "–";
   const missed = Object.values(state.missed).filter(v => v !== "").reduce((a, b) => a + Number(b), 0);
@@ -309,13 +352,12 @@ function summarise() {
   const hr = el("tr"); hr.append(el("th", { text: "" }));
   DATA.verdicts.forEach(v => hr.append(el("th", { text: v[1] })));
   t.append(hr);
-  [["Crop-recommended", groups.rec], ["Flagged", groups.flagged]].forEach(([name, g]) => {
+  [["Recommended", groups.rec], ["Flagged", groups.flagged]].forEach(([name, g]) => {
     const r = el("tr"); r.append(el("td", { text: name }));
     DATA.verdicts.forEach(v => r.append(el("td", { text: g[v[0]] || 0 })));
     t.append(r);
   });
-  const box = document.getElementById("summary");
-  box.replaceChildren(t, el("p", { text: "Tubules with no crop (entered estimates): " + missed }));
+  document.getElementById("summary").replaceChildren(t, el("p", { class: "save", text: "Tubules with no crop (entered estimates): " + missed }));
 }
 
 const filter = document.getElementById("filter");

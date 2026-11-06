@@ -93,4 +93,4 @@ Thumbs.db
 # README figures only: downscaled overview overlays chosen by the owner.
 # Every other image, crop and output stays local.
 !/docs/images/readme_v01_overlay.jpg
-!/docs/images/readme_v03_overlay.jpg
+!/docs/images/readme_v05_overlay.jpg

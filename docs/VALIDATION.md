@@ -179,3 +179,27 @@ assumptions. The production algorithm was not changed. Diagnostic scripts,
 measurements and figures are in the ignored local
 `outputs/tubule-investigation-2026-11-06-01/` folder. These tests explain failure;
 they do not establish a replacement detector or scientific accuracy.
+
+## Membrane-network method: owner click reviews — 2026-11-06
+
+Each review gave one verdict per crop: does the candidate outline trace one
+tubule? The page and verdict CSVs are local and Git-ignored, in
+`outputs/tubule-review-2026-11-06-0N/`. Method details are in
+[OVERVIEW_PROTOTYPE.md](OVERVIEW_PROTOTYPE.md); the current summary is in
+[EXTRACTION_STATUS.md](EXTRACTION_STATUS.md).
+
+| Run | Method | Sections reviewed | Crops | Recommended judged good | Used to tune the next version? |
+|---|---|---|---|---|---|
+| -02 | v0.2 | 01 (all), 02, 03 | 506 | 272/311 (87%) | yes (v0.3) |
+| -03 | v0.3 | 07 (all), 08, 09 | 493 | 336/360 (93%) | yes (v0.4) |
+| -04 | v0.4 | 10 (all), 11 | 389 | 258/290 (89%) | yes (v0.5) |
+
+- Each percentage comes from sections that were not used to tune the version
+  being reviewed.
+- v0.5 has not had its own review. Its changes were checked only by replaying
+  the -03 and -04 verdicts (see OVERVIEW_PROTOTYPE.md).
+- Sections 04, 05, 06, 12 and 13 have never been reviewed.
+- The per-section estimates of tubules with no crop were left blank, so recall
+  (missed tubules) is unmeasured.
+- These are crop-level judgements by one reviewer. They are not outline
+  accuracy, and not biological validation.

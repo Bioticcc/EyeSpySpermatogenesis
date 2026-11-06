@@ -18,18 +18,19 @@ OME-TIFF, or a folder of existing 40× images containing one or multiple tubules
 It builds a reduced overview without decoding a full native image array, outlines
 candidate tubules along their PAS-stained basement membranes, and exports
 original-pixel crops centred on each tubule, with provenance. The current method
-(v0.3) is described below, and its accuracy is measured by manual click-review,
-not claimed. Native boundary refinement, staging and a GUI are not implemented.
+(v0.5) is described below. Its accuracy is measured by manual click-review, not
+claimed. See [extraction status](docs/EXTRACTION_STATUS.md) for a summary and
+known errors. Native boundary refinement, staging and a GUI are not implemented.
 See [validation](docs/VALIDATION.md) and the [prototype guide](docs/OVERVIEW_PROTOTYPE.md).
 
-### Current comparison: v0.3 against the first attempt
+### Current comparison: v0.5 against the first attempt
 
 The same whole section, processed by the first attempt (v0.1, left) and the
-current method (v0.3, right). Each coloured, numbered region is one candidate.
+current method (v0.5, right). Each coloured, numbered region is one candidate.
 
-| First attempt (v0.1): 31 regions | Current method (v0.3): 292 regions |
+| First attempt (v0.1): 31 regions | Current method (v0.5): 309 regions |
 |---|---|
-| ![v0.1 candidates: the section split into a few large regions](docs/images/readme_v01_overlay.jpg) | ![v0.3 candidates: one outlined region per tubule](docs/images/readme_v03_overlay.jpg) |
+| ![v0.1 candidates: the section split into a few large regions](docs/images/readme_v01_overlay.jpg) | ![v0.5 candidates: one outlined region per tubule](docs/images/readme_v05_overlay.jpg) |
 
 v0.1 thresholded tissue darkness. Tubules are packed edge to edge, so the whole
 section became a few giant regions. v0.3 instead traces the boundary network:
@@ -37,7 +38,11 @@ each tubule is wrapped in a thin magenta PAS-positive membrane, and the regions
 enclosed by that network become candidates. It then
 - folds lumen cores and splinters back into their tubule,
 - splits regions holding two separated lumens (adjacent tubules sharing a faint wall),
-- rejects capsule strips, and
+- rejects capsule strips,
+- trims outline spikes into interstitial gaps,
+- re-checks large or irregular regions at 2× native resolution to find faint
+  shared walls,
+- re-joins a tubule cut along its inner acrosome ring, and
 - flags doubtful candidates.
 
 Manual review of one crop per candidate (does the outline trace one tubule?):
@@ -45,17 +50,23 @@ Manual review of one crop per candidate (does the outline trace one tubule?):
 | Version | Sections reviewed | Crops reviewed | Unflagged crops showing one tubule |
 |---|---|---|---|
 | v0.2 | 3 (used afterwards to tune v0.3) | 506 | 87% |
-| v0.3 | 3 (not used for tuning) | 493 | **93%** (336 of 360) |
+| v0.3 | 3 (not used for tuning; later used to tune v0.4) | 493 | **93%** (336 of 360) |
+| v0.4 | 2 (not used for tuning; later used to tune v0.5) | 389 | **89%** (258 of 290) |
 
 The legacy approach (branch `legacy`) trained a small U-Net on hand-drawn tubule
 polygons. It needed extensive annotation and never reached a completed
 quantitative benchmark; see [legacy findings](docs/LEGACY_FINDINGS.md).
 
-Known limits and next steps:
-- Two tubules sharing a very faint wall can still merge.
-- Outlines can leak into interstitial space ("spikes").
-- Flags are now too cautious.
-- v0.4 will trim outlines and re-check large regions at higher resolution.
+v0.5 has not had a fresh review yet. Its changes were checked by replaying the
+earlier verdicts.
+
+Known limits:
+- Large oblique tubules can still be cut in two.
+- Two tubules whose shared wall shows no stain can still merge.
+- Outlines come from the 8× overview and are not refined at native resolution.
+- Missed tubules (recall) have not been measured.
+
+Next: staging trials, starting with how to use existing annotations.
 
 PAS counterstain, physical pixel spacing, acquisition equipment and pyramid
 structure remain unconfirmed. **40× does not establish µm/pixel**, and enlarging

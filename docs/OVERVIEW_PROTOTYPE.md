@@ -300,3 +300,112 @@ None of these sections were used to set v0.3 thresholds.
 
 The review page now loads the outline as a separate transparent overlay that
 the **O** key toggles. Older runs have the outline burned into the JPEG.
+
+## v0.4: trimmed outlines and the fine-scale wall check (2026-11-06)
+
+Method `membrane_ridge_watershed_v0.4`. Settings were chosen against the v0.3
+review of sources 07–09, so those sections are no longer a fair test.
+
+1. **Outline trimming.** For each region:
+   - Unstained patches (bright, like lumens and interstitial gaps) that touch
+     the outline are removed when most of the patch lies outside the convex
+     hull of the region's stained pixels. Lumens are inside that hull, so they
+     are kept.
+   - The outline is opened with a disk of 0.2× the median region radius. This
+     removes thin spikes into interstitial space and debris.
+   - Only the largest remaining piece is kept.
+2. **Faint-wall check.** Regions of at least 1.3× the median area, or with
+   solidity below 0.85, are re-read from native pixels at 4 px per overview
+   pixel (2× native for an 8× overview). At that scale:
+   - A Sato ridge filter maps the membrane. The region is flooded from points
+     far from any membrane.
+   - Neighbouring pieces stay separate only if the membrane along their shared
+     border averages at least 0.75× the region's own outer wall.
+   - Pieces smaller than 0.5× median, or with under 30% of their outline on
+     the region's outer edge (a lumen ringed by PAS-positive material), are
+     folded into a neighbour.
+
+   The pipeline supplies native pixels through a `fetch` callback.
+   `--skip-wall-check` turns this off. Without a callback, the diagnostics record
+   `skipped_no_fetch`.
+3. **Flags.** The irregular-shape flag now fires below a solidity of 0.87, and
+   the elongated flag below an axis ratio of 0.40. These measures separate good
+   from bad crops only weakly; trimming and splitting did most of the work.
+
+**Checked by position against the v0.3 verdicts for sources 07–09:**
+
+| Your v0.3 verdict | v0.4 result |
+|---|---|
+| Good, recommended (336) | 335 unchanged |
+| Good, flagged (77) | 37 now recommended |
+| Merged (52) | 39 split along the real wall (14 of 16 recommended, 25 of 36 flagged) |
+| Good, re-checked at fine scale (72) | None split. Wall-threshold sweep: 0 Good split from 0.7 to 0.8, 5 at 0.6 |
+
+**All 13 sections:**
+
+- 3,780 candidates, 3,260 of them crop-recommended (v0.3: 3,602 and 2,722).
+- 842 regions were re-checked at fine scale, and 174 were split.
+- Each section takes about 21–28 s. The extra time is native reads for the
+  wall check.
+
+Output is in `outputs/tubule-review-2026-11-06-04`. The review page now has a
+**7: Outline spills** verdict for one tubule whose outline still leaks badly.
+Unbiased sections for the next review: 04–06 and 10–13.
+
+### v0.4 review — sections 10 and 11
+
+The owner reviewed 389 crops: all 267 of source 10 and 122 from source 11
+(`outputs/tubule-review-2026-11-06-04/tubule-review-2026-11-06-04_verdicts.csv`).
+Neither section was used to tune v0.4.
+
+| | Reviewed | Good | Partial | Merged | Spills / unsure / not tubule |
+|---|---|---|---|---|---|
+| Crop-recommended | 290 | 258 (89%) | 27 | 4 | 1 |
+| Flagged | 99 | 32 (32%) | 54 | 1 | 12 |
+
+- **Merges nearly disappeared:** 5 here, against 51 in the v0.3 review.
+- **The new main error is Partial: one tubule cut in two.** Source 10 has
+  large, oblique tubules with long lumens. Cuts come in two shapes:
+  - an inner piece (lumen plus inner epithelium) wrapped by an outer crescent;
+  - two halves.
+
+  The likely cause is the acrosomes of developing spermatids. At some stages
+  they form a PAS-positive ring partway through the epithelium, which the
+  membrane map mistakes for a wall.
+- Of the 40 reviewed pieces created by the v0.4 fine-scale wall split, 30 were
+  Partial. The same step was right on sources 07–09, so its first setting did not
+  generalise to these sections.
+- Only 9 crops were marked "Outline spills", so outline trimming works.
+
+## v0.5: re-join wrapped pieces, stricter walls (2026-11-06)
+
+Method `membrane_ridge_watershed_v0.5`.
+
+1. **Re-join wrapped pieces** (`rejoin_wrapped_pieces`, the last step before
+   flags). Two neighbouring regions are merged when all three hold:
+   - their shared border is at least 40% of the smaller region's outline;
+   - their union is compact (solidity ≥ 0.88);
+   - the union is no larger than 2.2× the median area.
+
+   Real neighbouring tubules share a much shorter border.
+2. **Wall ratio 0.75 → 0.9.** A fine-scale split must now follow a membrane at
+   least 0.9× as strong as the region's own outer wall.
+
+**Replayed against both reviews** (regions matched by position; v0.4 → v0.5):
+
+| Measure | v0.4 | v0.5 |
+|---|---|---|
+| v0.3-review merges split (sources 07–09, of 51) | 39 | 36 |
+| v0.4-review Partial pieces re-joined into a whole tubule (sources 10–11, of 81) | — | 29 |
+| Good tubules split or joined wrongly (both reviews) | 0 | 0 |
+
+Wall ratios of 1.05 fixed one more Partial but lost ten real merge splits. About
+50 Partial cases remain. They are inner/outer cuts whose union is not compact
+enough to re-join safely. Fixing them properly needs native-resolution boundary
+work: for example, recognising the acrosome ring by its position relative to the
+lumen, or a learned boundary model.
+
+**v0.5 on all 13 sections** (`outputs/tubule-review-2026-11-06-05`, not yet
+reviewed): 3,734 candidates, 3,245 of them crop-recommended. 842 regions were
+re-checked at fine scale; 142 were split, and 13 wrapped pieces were re-joined.
+Source checksums are unchanged.

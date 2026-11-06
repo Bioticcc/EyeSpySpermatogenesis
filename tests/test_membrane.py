@@ -1,4 +1,4 @@
-"""Synthetic mechanics for the v0.3 membrane method.
+"""Synthetic mechanics for the v0.5 membrane method.
 
 The synthetic section mimics the property that broke v0.1 (tubules packed edge
 to edge, white lumens, a surrounding capsule). Passing these tests is not
@@ -23,8 +23,12 @@ from eyespy_spermatogenesis.segmentation.membrane import (  # noqa: E402
     find_tubules,
     merge_enclosed,
     reject_strips,
+    rejoin_wrapped_pieces,
+    split_at_fine_scale,
+    split_faint_walls,
     split_large_regions,
     split_two_lumen_regions,
+    trim_outlines,
 )
 
 RADIUS = 40
@@ -159,6 +163,93 @@ def test_capsule_strips_are_rejected():
     np.testing.assert_array_equal(kept[:30], labels[:30])
 
 
+def test_trim_removes_spikes_and_outside_gaps_but_keeps_lumens():
+    y, x = np.mgrid[:200, :400]
+    labels = np.zeros((200, 400), dtype=np.int32)
+    for i, cx in enumerate((50, 150, 250, 350), 1):
+        labels[(y - 100) ** 2 + (x - cx) ** 2 <= 40**2] = i
+    labels[98:102, 50:100] = 1  # thin spike leaving tubule 1
+    gap = (y - 100) ** 2 + (x - 102) ** 2 <= 12**2
+    labels[gap & (labels == 0)] = 2  # unstained gap patch stuck to tubule 2
+    unstained = gap | ((y - 100) ** 2 + (x - 250) ** 2 <= 10**2)  # + lumen of 3
+    trimmed, removed = trim_outlines(labels.copy(), unstained, MembraneConfig())
+    assert removed > 0
+    assert trimmed[100, 95] == 0, "spike kept"
+    assert trimmed[100, 100] == 0, "gap kept"
+    assert trimmed[100, 250] == 3, "lumen removed"
+    assert trimmed[100, 50] == 1 and trimmed[100, 150] == 2
+
+
+def two_tubules(wall=True, lumen_ring=False):
+    """Fine-scale RGB: two touching discs, optional shared magenta wall."""
+    y, x = np.mgrid[:200, :360]
+    rgb = np.empty((200, 360, 3), dtype=np.float32)
+    rgb[:] = [0.7, 0.58, 0.78]  # epithelium
+    left = (y - 100) ** 2 + (x - 95) ** 2 <= 90**2
+    right = (y - 100) ** 2 + (x - 265) ** 2 <= 90**2
+    mask = left | right
+    from scipy import ndimage as ndi
+
+    outer = mask & ~ndi.binary_erosion(mask, iterations=3)
+    rgb[outer] = [0.8, 0.3, 0.8]
+    if wall:  # two basement membranes back to back stain more intensely
+        rgb[np.abs(x - 180) <= 1] = [0.85, 0.2, 0.85]
+    if lumen_ring:
+        d = np.sqrt((y - 100) ** 2 + (x - 95) ** 2)
+        rgb[np.abs(d - 30) <= 1.5] = [0.8, 0.3, 0.8]
+    rgb[~mask] = [0.94, 0.92, 0.95]
+    return rgb, mask
+
+
+def test_fine_scale_split_needs_a_real_wall():
+    config = MembraneConfig()
+    median = 2000  # overview px^2; each disc is ~1590 overview px^2 (0.8x)
+    rgb, mask = two_tubules(wall=True)
+    pieces = split_at_fine_scale(rgb, mask, median, config)
+    assert pieces is not None and pieces[100, 60] != pieces[100, 300]
+    rgb, mask = two_tubules(wall=False, lumen_ring=True)
+    assert split_at_fine_scale(rgb, mask, median, config) is None
+
+
+def test_split_faint_walls_uses_fetched_pixels():
+    config = MembraneConfig()
+    rgb, mask = two_tubules(wall=True)
+    f = config.fine_factor
+    labels = np.zeros((50, 200), dtype=np.int32)
+    labels[:, 90:] = 0
+    coarse = mask[f // 2 :: f, f // 2 :: f]
+    labels[: coarse.shape[0], : coarse.shape[1]][coarse] = 1  # merged pair
+    for i, x0 in enumerate((100, 130, 160), 2):
+        labels[5:40, x0 : x0 + 28] = i  # three typical regions
+    fine = (rgb * 255).astype(np.uint8)
+    calls = []
+
+    def fetch(bounds):
+        calls.append(bounds)
+        x0, y0, x1, y1 = bounds
+        return fine[y0 * f : y1 * f, x0 * f : x1 * f]
+
+    split, checked, splits = split_faint_walls(labels.copy(), fetch, config)
+    assert calls and checked >= 1 and splits == 1
+    assert split[25, 20] != split[25, 65]
+    assert split[25, 20] not in (0, 1, 2, 3, 4)
+
+
+def test_wrapped_inner_piece_rejoins_but_neighbours_do_not():
+    y, x = np.mgrid[:120, :480]
+    labels = np.zeros((120, 480), dtype=np.int32)
+    for i, cx in enumerate((60, 180, 300, 420), 1):
+        labels[(y - 60) ** 2 + (x - cx) ** 2 <= 50**2] = i
+    # Tubule 1 cut into an inner zone and an outer crescent (acrosome ring).
+    labels[((y - 60) ** 2 + (x - 60) ** 2 <= 30**2)] = 5
+    joined, count = rejoin_wrapped_pieces(labels.copy(), MembraneConfig())
+    assert count == 1
+    assert joined[60, 60] == joined[60, 25] and joined[60, 60] != 0
+    for cx in (180, 300, 420):  # touching neighbours stay separate
+        assert joined[60, cx] != joined[60, 60]
+    assert len({joined[60, cx] for cx in (180, 300, 420)}) == 3
+
+
 def test_centered_square_bounds_contain_candidate_and_clip():
     geometry = OverviewGeometry(800, 600, 800, 600, 8)
     centre = {
@@ -194,7 +285,8 @@ def test_cli_thumbnails_and_review_sheet(tmp_path):
         == 0
     )
     manifest = json.loads((output / "manifest.json").read_text())
-    assert manifest["segmentation"]["method"] == "membrane_ridge_watershed_v0.3"
+    assert manifest["segmentation"]["method"] == "membrane_ridge_watershed_v0.5"
+    assert manifest["segmentation"]["diagnostics"]["faint_wall_check"] == "done"
     assert manifest["counts"]["detected_candidates"] >= len(centres)
     assert not list(output.glob("candidate_*.tif"))
     for c in manifest["candidates"]:

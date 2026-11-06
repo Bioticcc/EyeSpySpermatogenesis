@@ -83,6 +83,39 @@ def _write_thumbnail(path, data, size, outline=None, outline_path=None):
         image.convert("RGB").save(handle, format="JPEG", quality=85)
 
 
+def _fine_fetcher(native, geometry, fine_factor, max_bytes):
+    """Overview bounds -> native pixels area-averaged to ``fine_factor`` px/cell.
+
+    Used only by the membrane method's faint-wall check. Returns ``None`` for
+    grayscale sources or reads above ``max_bytes``.
+    """
+    import numpy as np
+
+    def fetch(bounds):
+        if native.channels != 3:
+            return None
+        x0, y0, x1, y1 = bounds
+        source = geometry.source_bounds(bounds)
+        width, height = source[2] - source[0], source[3] - source[1]
+        if width * height * (native.channels * native.dtype.itemsize + 8) > max_bytes:
+            return None
+        pixels = native.read_region(source)
+        shape = ((y1 - y0) * fine_factor, (x1 - x0) * fine_factor)
+        step = geometry.scale_x / fine_factor
+        if step == geometry.scale_y / fine_factor and step.is_integer() and step >= 1:
+            n = int(step)
+            h, w = min(height // n, shape[0]), min(width // n, shape[1])
+            blocks = pixels[: h * n, : w * n].reshape(h, n, w, n, -1)
+            fine = blocks.mean(axis=(1, 3))
+        else:
+            from skimage.transform import resize_local_mean
+
+            fine = resize_local_mean(pixels, (*shape, 3), preserve_range=True)
+        return np.rint(fine).astype(pixels.dtype)
+
+    return fetch
+
+
 def _reader_stats(reader):
     return {
         "decoded_segments": reader.decoded_segments,
@@ -108,7 +141,7 @@ def run(args) -> dict:
     output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
     manifest = {
-        "schema_version": "overview-prototype-0.3",
+        "schema_version": "overview-prototype-0.5",
         "status": "running",
         "validation": "algorithm_unvalidated_manual_review_required",
         "config": vars(args),
@@ -229,8 +262,19 @@ def run(args) -> dict:
                         ridge_threshold=args.ridge_threshold,
                         merge_threshold=args.merge_threshold,
                     )
+                    fetch = None
+                    if not args.skip_wall_check:
+                        fetch = _fine_fetcher(
+                            native,
+                            geometry,
+                            config.fine_factor,
+                            options["max_region_bytes"],
+                        )
                     labels, candidates, diagnostics = membrane.find_tubules(
-                        overview, config, max_candidates=args.max_candidates
+                        overview,
+                        config,
+                        max_candidates=args.max_candidates,
+                        fetch=fetch,
                     )
                     method_name = membrane.METHOD
                 else:
@@ -414,7 +458,7 @@ def main(argv=None):
         "--method",
         choices=("membrane", "darkness-v0.1"),
         default="membrane",
-        help="membrane (v0.3, default) or the failed v0.1 darkness baseline",
+        help="membrane (v0.5, default) or the failed v0.1 darkness baseline",
     )
     parser.add_argument(
         "--threshold", type=float, help="v0.1 darkness threshold [0,1]; default Otsu"
@@ -452,6 +496,11 @@ def main(argv=None):
     )
     parser.add_argument(
         "--margin", type=int, default=32, help="Crop margin in source pixels"
+    )
+    parser.add_argument(
+        "--skip-wall-check",
+        action="store_true",
+        help="Membrane method: skip the native-pixel faint-wall check (faster)",
     )
     parser.add_argument("--max-candidates", type=int, default=20_000)
     args = parser.parse_args(argv)

@@ -1,26 +1,31 @@
 # Proposed architecture
 
-**Design only.** Package modules are empty boundaries. Field names below are
-proposals to validate in Phase 1, not an implemented schema or reader API.
+**Prototype implementation, 2026-11-06.** Metadata inspection, restricted
+single-plane TIFF region reads, streamed overviews, provisional overview
+candidates and original-pixel crop/seed export are implemented. Only synthetic
+mechanics have been tested; real-image I/O and biology remain unvalidated.
+Native boundary refinement and staging remain unimplemented. See
+[OVERVIEW_PROTOTYPE.md](OVERVIEW_PROTOTYPE.md). The full contracts below remain
+proposals; the prototype manifest is a separate versioned trial format.
 
 ```mermaid
 flowchart TD
     A[Whole-section OME-TIFF] --> M[Inspect series, planes, scale and native detail]
-    B[Folder of existing 40× images] --> F[Discover, validate and preserve originals]
-    M --> D1[Option D1: overlapping native-detail regions]
-    M --> D2[Option D2: coarse localization then native-detail retrieval]
-    M --> D3[Option D3: whole-slide tool regions]
-    D1 --> C[Shared AnalysisRegion contract]
-    D2 --> C
-    D3 --> C
-    F --> C
-    C --> I[Tubule isolation adapter: A, B or benchmark C]
-    I --> R[Reconcile instances in source coordinates]
-    R --> Q[Crops, masks, provenance and quality review]
+    M --> D2[Whole-section overview: stored level or streamed area mean]
+    D2 --> I[Provisional overview tubule candidates]
+    I --> N[Retrieve native source crops and project seed masks]
+    B[Existing frames: later batch adapter] --> N
+    N --> R[Later: native boundary refinement and review]
+    R --> Q[Crops, masks, provenance and quality]
     Q --> U[Unsuitable or ambiguous: retain with reasons]
-    Q --> S[Suitable crops: independent staging adapter]
-    S --> O[Exact or grouped stage, uncertainty or abstention]
+    Q --> S[Later: measurements or staging]
 ```
+
+The owner selected overview-first D2 on 2026-11-06, superseding grid-first D1.
+D1 overlapping reads remain a fallback comparison, D3 QuPath an integration
+comparator. Overview localization may miss or merge objects; global coordinates
+avoid grid reconciliation but do not establish correct instances. Folder batch
+adaptation remains future work; each frame is an independent source.
 
 ## Module boundaries
 
@@ -83,19 +88,23 @@ series, associated images and planes explicitly. Reader trials must establish
 bounded decoding; a lazy-looking API is not proof of low memory use. Bound tile
 caches, worker count, queue size and output buffers as well as tile dimensions.
 
-D1 evaluates tissue/background exclusion and configurable overlapping tiles with
-a context halo. Use ownership cores to nominate candidates, but do not accept an
-incomplete halo-edge mask as a complete instance. D2 evaluates lower-resolution
-localization separately, retaining localization misses as failures; final crops
-come from verified native-detail pixels. D3 exports source-space ROIs through a
-whole-slide application. Compare all three; no strategy is selected yet.
+D2 is the initial path: use a checked lower-resolution level or derive an
+overview by streamed area averaging. Localize provisional candidates globally,
+retrieve their native bounding regions plus context, and preserve source-space
+transforms. Native refinement is a later real-image-informed step; projected
+seed masks must never be presented as verified native contours.
 
-An OME-TIFF need not have a 20× level. If no useful coarse level exists, compare
-bounded on-demand downsampling, a derived pyramid, or D1. A derived pyramid is
-for localization only. If native detail is insufficient, stop staging eligibility
-and request a suitable original; unverified detail permits characterization only.
+The prototype requires explicit pyramid selection and an operator alignment
+assertion; it does not silently treat dimension ratios as alignment proof. There
+need not be a nominal 20× level. If no useful stored level exists, derive a bounded
+overview from native segments. Lack of a pyramid and lack of native optical
+detail are separate issues. Unverified detail permits characterization and
+provisional extraction only; it does not establish staging eligibility.
 
 ## Boundaries, duplicates and reconciliation
+
+D1 fallback requirements below remain proposed, not implemented. D2 still needs
+merge/split/miss checks against expert whole-section references.
 
 Transform candidates to source coordinates before deduplication. Use overlapping
 masks/contours, containment, centroid proximity and quality evidence; box overlap

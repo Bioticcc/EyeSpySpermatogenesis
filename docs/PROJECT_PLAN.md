@@ -8,8 +8,17 @@ staging**. Reuse validated software and mature algorithms before building new
 models. Confirmed requirements are in
 [EXPERIMENTAL_SPECIFICATIONS.md](EXPERIMENTAL_SPECIFICATIONS.md).
 
-Phase 0 provides plans and a minimal Python scaffold. There is no image-analysis
-implementation, GUI, model installation, or demonstrated scientific performance.
+Owner-confirmed order, updated 2026-11-06: **whole-section overview → provisional
+tubule localization → native original-pixel crop retrieval → later boundary
+refinement and analysis**. D2 supersedes the original grid-first D1 route.
+
+Phase 0 is complete. Phase 1 real-image characterization and I/O validation remain
+open. The owner authorized an overview-first prototype before the test TIFF
+arrives: a restricted segment reader, streamed overview, classical provisional
+candidates, native crops, projected seed masks and provenance now exist with
+synthetic tests. Native boundary refinement, batch adapters, staging and a GUI
+remain future work. See [the prototype plan](OVERVIEW_PROTOTYPE.md) and
+[the Phase 1 guide](PHASE1_IO_VALIDATION.md).
 The clean main is published on GitHub, with the original project preserved on
 legacy; see [GIT_MIGRATION.md](GIT_MIGRATION.md).
 
@@ -17,17 +26,18 @@ legacy; see [GIT_MIGRATION.md](GIT_MIGRATION.md).
 
 | Phase | Work | Exit evidence / approval gate |
 |---|---|---|
-| 0 — current | Archive legacy; clean active tree; review software; specify shared contracts and comparisons | Verified archive ref, reviewed docs, package import/lint checks; no substantive algorithms |
-| 1 | Characterize OME-TIFFs and folder images; verify scale/counterstain; test bounded readers; agree pilot and contracts | Metadata reports, matched-region comparisons, peak memory/time, source transforms; owner approves prototype plan |
-| 2 | Compare A/B segmentation, legacy C if fair, and whole-section D1/D2/D3 | Same grouped pilot, complete-crop and instance metrics, boundary stress tests; documented selection |
+| 0 — complete | Archive legacy; clean active tree; review software; specify shared contracts and comparisons | Verified archive ref, reviewed docs and passing scaffold CI |
+| 1 — current | Characterize OME-TIFFs and folder images; verify scale/counterstain; test bounded readers and manual crops; agree pilot and contracts | Metadata reports, matched-region comparisons, peak memory/time, source transforms; owner approves Phase 2 prototype plan |
+| 2 — prototype started | Synthetic A-D2 implementation authorized; later compare A/B, legacy C if fair, and D1/D3 | Same grouped pilot, complete-crop and instance metrics, boundary stress tests; documented selection |
 | 3 | Implement chosen batch extraction and exports; explicit ambiguity and quality handling | Independently reviewed crop outputs, repeatable runs, coordinate/provenance checks |
 | 4 | Evaluate S1 pretrained staging, S2 morphology, S3 hybrid; exact vs grouped taxonomy | Held-out animal-level evaluation, coverage/uncertainty and failure analysis; no unsupported staging claim |
 | 5 | Integrate both inputs, batch jobs, progress, exports, offline distribution; assess GUI only after core validation | Target-platform and operator acceptance, installation/offline tests, end-to-end scientific validation |
 
 ## Exact entry steps for Phase 1
 
-1. Owner authorizes image characterization and bounded-reader experiments; no
-   segmentation implementation is implied by that authorization.
+1. Owner authorized image characterization and bounded-reader experiments on
+   2026-11-04. The 2026-11-06 update separately authorized the limited overview-first
+   prototype; it does not establish real-image validation or authorize staging.
 2. Supply local paths to representative complete-section OME-TIFFs and existing
    40× folder images. Keep them outside tracked files. Multiple animals/acquisition
    batches are desirable; availability is unknown. No dataset is assumed to exist.
@@ -46,7 +56,8 @@ legacy; see [GIT_MIGRATION.md](GIT_MIGRATION.md).
 7. Draft the pilot manifest, grouped splits and expert annotation rubric. Validate
    the proposed contracts in [ARCHITECTURE.md](ARCHITECTURE.md) against actual data.
 8. Review evidence with owner/expert and approve the specific Phase 2 prototype
-   configuration, resource budget, dependencies, and success thresholds.
+   comparison configuration, resource budget and scientific success thresholds.
+   The initial synthetic implementation plan is in `OVERVIEW_PROTOTYPE.md`.
 
 ## Handoff
 

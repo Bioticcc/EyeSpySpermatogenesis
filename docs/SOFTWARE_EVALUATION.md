@@ -3,8 +3,12 @@
 Reviewed **2026-11-04**, using primary documentation, public repositories and
 published methods. **V** = capability verified in documentation/code;
 **P** = published biological evidence; **H** = project-specific hypothesis;
-**U** = unresolved. No candidate was installed or run on project images. “Offline”
-below means a plausible local runtime after installation and artifact acquisition,
+**U** = unresolved. The initial review was source-only. The 2026-11-06
+overview-first prototype adds restricted TIFF region reads and an optional
+SciPy/scikit-image comparator, tested only on synthetic images; no candidate has
+been validated on project images. See [the prototype](OVERVIEW_PROTOTYPE.md) and
+[Phase 1](PHASE1_IO_VALIDATION.md). “Offline” below means a plausible local runtime
+after installation and artifact acquisition,
 not a tested disconnected deployment. Installation difficulty is an engineering
 estimate. No tool is declared production-ready for mouse PAS/FFPE/40× analysis.
 
@@ -20,8 +24,9 @@ estimate. No tool is declared production-ready for mouse PAS/FFPE/40× analysis.
    bright-field comparator; neither has demonstrated transfer to these inputs.
    CSS contributes feature concepts. STAGETOOL is a modality-mismatched reference.
 
-These priorities are **H**, not selected dependencies. Phase 1 evidence and an
-approved prototype plan must precede substantive implementation.
+These priorities are **H**, not production selections. The owner approved limited
+synthetic implementation on 2026-11-06; real-image
+Phase 1 evidence and pilot evaluation must precede scientific method selection.
 
 ## OME-TIFF and whole-section handling
 
@@ -193,5 +198,6 @@ Some PMC pages returned bot challenges. Where necessary, indexed primary-paper
 text, PubMed or the publisher/arXiv text provided evidence; no local replication
 was possible. CSS fixation/calibration and several artifact licenses remain
 explicitly unresolved. No third-party weights/datasets were downloaded and no
-author contact was initiated. Phase 1 should resolve file compatibility first; Phase 2/4 approval
-should name exact tool/artifact versions before any scientific comparison.
+author contact was initiated. The later overview prototype's exact dependency
+versions are recorded in its guide. Real-file compatibility and scientific
+comparison remain open; staging still requires separate approval.

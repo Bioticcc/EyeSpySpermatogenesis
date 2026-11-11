@@ -1,8 +1,49 @@
 # Staging strategy
 
 Staging is a separate consumer of isolated tubules. No classifier or feature
-extractor exists in this scaffold, and no pretrained model has been downloaded.
-The initial deliverable's taxonomy is **PENDING CONFIRMATION**.
+extractor exists yet, and no pretrained model has been downloaded. Label
+taxonomy: 11 classes (I, II–III, IV–XII) plus "can't stage" (decision 020).
+
+## Plan: five rounds (owner, 2026-11-09)
+
+Staging proceeds in up to five rounds (decision 023; the UNI2 round was added
+the same day). Each round uses its own source of labels or model and ends by
+training (or adopting) a model and evaluating it. If the result is unsatisfactory, the next round starts.
+
+| Round | Labels / model | Status |
+|---|---|---|
+| 1 · **Baseline** | **Yeongseok's hand-staged paper sheets only** (`Inputs/Staging annotations/`, sections in `Inputs/YeongSeok_Staging/`), transferred onto v0.5 crops. Train a staging model on these labels alone. | Done 2026-11-09: 80% exact, 70% balanced, 99.7% within one stage (leave-one-section-out; below). Expert review pending. |
+| 2 · **SATINN** | SATINN v2's pretrained bright-field stager (MATLAB paper), used alone, no training on our labels. | First run 2026-11-09 (label-free preprocessing choice): 31% exact, 52% within one stage (below). Windows-app reference check still open (deferred by the owner 2026-11-11). |
+| 3 · **UNI2** ⚠ | UNI2 (`MahmoodLab/UNI2-h`) as a frozen feature extractor, trained on the same Yeongseok paper labels as round 1. | Done 2026-11-11: UNI2 alone 81% exact / 72% balanced (no significant difference from round 1); UNI2 + H-optimus-0 ensemble 84% / 75% (below). Expert review pending. **⚠ Research only, never releasable (decision 025).** |
+| 4 · **Hybrid** | Combine the round 2 model with our own model from the Yeongseok labels (best of rounds 1 and 3); tune weights/settings to beat the best of rounds 1–3. | After rounds 1–3. |
+| 5 · **Manual** | All lab members annotate as many tubules as possible on the annotation page. | Only if rounds 1–4 fail. |
+
+Feature extractor licences (checked on the Hugging Face model pages,
+2026-11-09; recheck before release):
+
+| Model | Licence | Free to use and publish? |
+|---|---|---|
+| H-optimus-0 (Bioptimus, 1.1B, 224 px at 0.5 µm/px) | Apache-2.0, gated (share HF info) | Yes |
+| DINOv2 (Meta; not histology-specific) | Apache-2.0 | Yes |
+| Prov-GigaPath (Microsoft) | Apache-2.0, gated; card says research use only, deployment out of scope | Licence yes; card discourages deployment |
+| UNI2-h (Mahmood lab) | CC-BY-NC-ND-4.0, gated | Research only; no redistribution |
+| Virchow2 (Paige) | CC-BY-NC-ND-4.0, gated | Research only; no redistribution |
+| Phikon-v2 (Owkin) | Owkin non-commercial | Research only |
+
+Round 1 rules:
+
+- Train only on `origin = paper` labels (annotator Yeongseok). On-screen labels
+  were reset on 2026-11-09 (decision 024); round 1 does not use them.
+- Paper reads are transcriptions (machine or Claude), not yet checked by a
+  person. Readings flagged "to check" and unreadable marks stay out of the
+  first training set unless someone checks them.
+- Yeongseok may add sheets and TIFFs. Run
+  `.venv/bin/python scripts/check_new_staging_inputs.py` at the start of a
+  session; if it lists anything, tell the owner, who decides whether to
+  retrain round 1 with the new labels.
+- Hold out whole sections (animals) for evaluation. Sections show only a few
+  stages each (synchronised zones), so a split by section changes which stages
+  the test set contains; check per-stage counts in both splits.
 
 ## Exact and grouped outcomes
 
@@ -76,3 +117,257 @@ including whether XII↔I wraps cyclically and how mixed transition tubules are
 handled. It must not hide poor exact-stage performance or be applied mechanically
 to grouped classes. Full evaluation design is in
 [EVALUATION_PLAN.md](EVALUATION_PLAN.md).
+
+## Paper annotation transfer (trial, 2026-11-06)
+
+Existing hand-staged printouts can be transferred to v0.5 candidates (decision
+022). The trial on `#77_WR2_50d_7-1` registered a phone photo of the printout to
+the overview with SIFT + RANSAC (perspective; mean residual ~1.5 overview px)
+and assigned 285 circled numerals to candidates. Numerals are read by a
+sheet-specific rule (ink height for X / bar count) and are **suggestions to
+confirm**, not verified labels: the X-plus-bars cases (XI vs XII) are the main
+misreads. Marks shared by one candidate expose v0.5 merges. The trial script
+and notes live in `outputs/paper-alignment-2026-11-06-01/` (Git-ignored);
+promote it into the package once more sheets confirm the approach.
+
+This WR2 section shows only about four stages (I, II–III, XI, XII), grouped in
+zones, which looks like synchronised spermatogenesis (owner to confirm). Such
+sections give many examples of few stages. Track label counts per stage across
+sections before training.
+
+### Sheets 2–8 (2026-11-09): round 1 label set
+
+Eight new photos arrived; one (`20261109_112115.jpg`, #77_1) is the same
+printout as `IMG_6890.tiff` and was not imported again. The other seven were
+registered with the trial method (mean residual 1.3–1.5 overview px each) and
+their marks assigned to candidates. The rule-based numeral reader could not
+read these photos (small, touching strokes; IV–IX appear), so Claude read
+every mark by eye from upright contact sheets; per-stage totals agree with
+each sheet's handwritten legend within a few marks. Details, legend check and
+scripts: `outputs/paper-alignment-2026-11-09-01/RUN_NOTES.md` (Git-ignored).
+
+Paper labels on the page (one per candidate; "accepted" = unflagged crops,
+which the page stages):
+
+| Stage | I | II–III | IV | V | VI | VII | VIII | IX | X | XI | XII | no stage¹ | Total |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Accepted | 623 | 452 | 23 | 49 | 69 | 191 | 76 | 26 | 15 | 173 | 133 | 8 | 1838 |
+| All candidates | 698 | 516 | 26 | 51 | 81 | 219 | 92 | 29 | 19 | 182 | 142 | 31 | 2086 |
+
+¹ Marks in one candidate that disagree (usually a v0.5 merge), unreadable
+marks, or symbols.
+
+Accepted, by section:
+
+| Section | Stages (count) |
+|---|---|
+| #76_WR2_50d_6-1 | I 74, II–III 119, IV 13, V 4, VI 1, X 1, XI 1, XII 7 |
+| #77_WR2_50d_7-1 (sheet 1, older machine reads) | I 82, II–III 43, XI 68, XII 37 |
+| #91_WR2_47d_6-1 | V 2, VI 12, VII 90, VIII 55, IX 25, X 14, XI 8 |
+| #92_WR2_47d_7-1 | IV 10, V 43, VI 56, VII 101, VIII 21, IX 1 |
+| #108_WR2_43d_4-1 | I 126, II–III 115, XII 1 |
+| #109_WR2_43d_5-1 | I 129, II–III 103, XII 1 |
+| #112_WR2_42d_2-1 | I 132, II–III 72, XI 1, XII 33 |
+| #113_WR2_42d_3-1 | I 80, XI 95, XII 54 |
+
+All 11 classes have examples, but very unevenly: I and II–III have over 450
+each, while IV, IX and X have 15–26, and most of those come from one or two
+sections. IV–IX come almost entirely from #91 and #92 (one animal age, 47 d),
+so a section-held-out split cannot test those stages on an unseen animal yet.
+#113's XI/XII split is uncertain: Yeongseok crossed out the legend counts
+("82?", "83?") pending a microscope recount.
+
+## Round 1 first result (2026-11-09)
+
+Code: `src/eyespy_spermatogenesis/staging/round1/` (`data`, `embed`,
+`evaluate`, `review`). Large files on the 20 TB drive
+(`/mnt/20TB_A/Adam/EyeSpySpermatogenesisRebooted/`: `models/hf-cache`,
+`staging-round1/{data,embeddings}`); results in
+`outputs/staging-round1-2026-11-09-01/` (`summary.md`, `confusion_loso.png`).
+Expert review and whole-section overlays live on the annotation page (mode
+"Model review", tabs Annotate and Overview; see [ANNOTATION.md](ANNOTATION.md#model-review)).
+
+Frozen H-optimus-0 features (2x downsampled 224 px patches, mean pooled) and a
+cyclic ridge head, regularization chosen by nested leave-one-section-out, on
+1723 accepted tubules with unflagged paper stages:
+
+| | Leave-one-section-out | Random 5-fold (optimistic) |
+|---|---|---|
+| Accuracy | 0.80 | 0.85 |
+| Balanced accuracy (mean per-stage recall) | 0.70 | 0.78 |
+| Within one stage | 0.997 | 0.998 |
+
+Per-stage recall: I and II–III 0.86, VII 0.80, XI 0.85, XII 0.77, IX 0.83,
+VIII 0.59, IV/V/VI 0.55–0.57, X 0.50. Errors are almost all to an adjacent
+stage. DINOv2-L, the general-purpose baseline, was lower (accuracy 0.78,
+balanced 0.67). The cyclic head beat logistic regression in every
+configuration and can predict a stage it barely saw in training (IX when #91
+is held out) by placing it between its neighbours.
+
+Not yet established: agreement with an expert's eye (review page pending),
+label accuracy (transcriptions unchecked), performance on sections without
+paper labels. fp16 inference was checked against fp32 on 48 patches (cosine
+1.0000, mean relative difference 0.14%).
+
+## Round 2 (SATINN) investigation (2026-11-09)
+
+Source: [SATINN repository](https://github.com/conradlab/SATINN) (Windows app,
+MATLAB helpers; no licence file) and the pretrained networks on
+[Figshare 22853645](https://figshare.com/articles/dataset/SATINN_-_demo_files_and_neural_networks_r_230516_/22853645)
+(**CC BY 4.0**), archive `SATINN_demo_files_260531.rar` (md5
+`74be537bde02e2ed3b63caf35987eb48`), stored with the extracted files under
+`/mnt/20TB_A/Adam/EyeSpySpermatogenesisRebooted/models/satinn/`. RAR5: extract
+with `bsdtar`; this system's 7-Zip and `unar` fail on the compressed entries.
+
+Networks: `bf_tnetr-*` bright-field tubule stager (newest `240110`),
+`bf_tss-*` tubule segmentation, `bf_cnetr-*` cell classifier, `if_*`
+immunofluorescence. `bf_tnetr-240110` is a MATLAB `DAGNetwork`: **ResNet-50**
+(23.6M parameters), input 500x500 RGB 0-255 minus mean colour (194.1, 163.7,
+204.2), **12 outputs I, II, III, ..., XII** (II and III separate; summed for
+our II-III class). Paper: 8,285 tubules from 42 images at 0.137-0.17 µm/px,
+63% exact / 96% within one stage on external validation, predictions below
+0.80 confidence discarded.
+
+Converted without MATLAB (`staging/satinn.py`, `mat-io` decodes the MATLAB
+objects): `convert` writes plain arrays (`bf_tnetr-240110.npz`), `load`
+rebuilds it in PyTorch. The rebuild is unit-tested against a NumPy reference.
+
+**Open: the input preprocessing.** The paper and code do not state it for
+bright-field. Checking each batch-norm layer's stored training statistics on
+SATINN's own demo image (`MS124RS101_med`, about 0.15-0.18 µm/px) shows the
+training images had about **3x more contrast** than the demo file (raw input:
+first-layer variance 10% of training; with a 3x contrast gain about the mean,
+0.8-1.3x at most layers). Scale is less clear (500 px native or 2000 px
+reduced 4x both partly match). Predictions change strongly with these
+choices, so SATINN must not be scored on our labels until the preprocessing
+is pinned down (ask the authors, or run their Windows app as a reference, or
+choose it without our labels by matching batch-norm statistics on our crops).
+
+### Round 2 first result (2026-11-09)
+
+`staging/round2.py`; results in `outputs/staging-round2-2026-11-09-01/`
+(`summary.md` with the full sensitivity table, `confusion_loso.png`,
+`probs.npz` for round 4); Overview panels on the annotation page.
+Preprocessing chosen **without labels** (lowest batch-norm mismatch on 300
+tubules over 7 box sizes x 6 contrast settings): 500 px native box around the
+tubule centre, mean colour moved to SATINN's, no contrast gain.
+
+On the same 1723 tubules as round 1: **30.6% exact, 30.8% balanced, 51.5%
+within one stage** (confidence >= 0.80: 72% coverage, 35.6% exact). No setting
+in the grid exceeded 35% exact. Errors are systematic rather than random:
+most stage I (374 of 589) and XII (90 of 128) tubules are called VI;
+II-III splits between II-III, V and VI; VI-XI are mostly right (VII 98%,
+IX 62%, XI 60%). Median confidence 0.96, so its 0.80 filter barely helps:
+a domain shift (staining, scanner, fixation or undocumented preprocessing),
+not random noise. The planned Windows-app run on the demo image and a few of
+our crops will show whether our conversion/preprocessing or the domain is to
+blame.
+
+### Round 2 preprocessing checks (2026-11-09)
+
+`outputs/staging-round2-2026-11-09-01/checks.{py,md,json}` and
+`checks_small.{py,json}`. Both SATINN stagers x box size (250-1600 px) x
+outside-tubule fill (none / white / black, using our v0.5 outlines) x contrast.
+
+- SATINN's segmentation net (`bf_tss`, DeepLab-style, 720x960 input) labels
+  tubule / interstitium / background / boundary, so their pipeline has exact
+  tubule outlines; masking is plausible.
+- **Black masking helps** `bf_tnetr-240110`, and the label-free criterion
+  agrees: lowest batch-norm mismatch of all settings (0.48) is box 500 px,
+  black fill, raw contrast: **41% exact, 72% within one** (vs 31% / 52%
+  unmasked). Best by labels (not used to choose): box 400 px, black, 43% /
+  78%.
+- Accuracy is very sensitive to scale: 400-500 px boxes 41-43%, 650 px
+  11-16%, 250 px 29%. The best scale is ~2.5x more zoomed-in than SATINN's
+  own helper implies (2000 px at ~0.15 um/px reduced 4x), if our pixels are
+  ~0.25 um.
+- The older `bf_tnetr-230314` (10 classes, X-XI merged, darker training
+  mean) collapses on our data: about 34% exact with 10% balanced accuracy,
+  i.e. nearly everything called one stage.
+
+Still far below the published 63% / 96%. Whether the gap is our
+reconstruction of their pipeline or a real domain shift (staining, scanner,
+fixation, staging convention) is for the Windows-app reference run.
+
+## Round 3 (UNI2-h) result (2026-11-11)
+
+> ## ⚠ RESEARCH ONLY: NOT FOR RELEASE
+>
+> UNI2-h is licensed CC-BY-NC-ND-4.0 under the Mahmood lab's gated terms
+> (model card, read 2026-11-11): non-commercial academic research only; no
+> copy of the model may be distributed, published or reproduced; its
+> "derivatives", **including models trained on its outputs and datasets
+> created from it**, may not be used commercially; every user must register
+> on Hugging Face individually. **No model in this section can ship in a public
+> or packaged build of this software** (decision 025). If it proves useful, it
+> is a proof of concept showing the lab what more annotations could achieve.
+> The repo holds only the loader settings (`round1/embed.py`, `RESEARCH_ONLY`);
+> weights (`models/hf-cache`), embeddings (`staging-round1/embeddings/uni2-h`)
+> and trained heads stay on the 20 TB drive, outside Git.
+
+Same data, split and classifiers as round 1 (1723 tubules, leave-one-section-
+out, nested regularization), with UNI2-h (ViT-H/14, 681M parameters, 1536-dim,
+ImageNet normalisation, settings from the model card) as the frozen extractor.
+fp16 matched fp32 on 48 patches (cosine 1.0000, mean relative difference
+0.10%). Embedding took 30 min on the RTX 4060. Results in
+`outputs/staging-round3-2026-11-11-01/` (`summary.md`, `results.json`,
+`confusion_loso.png`, `compare.py/json`, `ensemble.py/json/log`,
+`ensemble_predictions.npz`).
+
+Ensembles average the two heads' cyclic (cos, sin) outputs, each with its own
+nested-chosen regularization. 95% intervals are a section bootstrap (2000
+resamples) of the difference from H-optimus-0 alone:
+
+| Model | Exact | Balanced | Within one | Δ exact vs H-optimus-0 (95% CI) | Releasable |
+|---|---|---|---|---|---|
+| H-optimus-0 (round 1) | 0.804 | 0.704 | 0.997 | — | yes |
+| DINOv2-L | 0.781 | 0.663 | 0.993 | −0.047 to +0.002 | yes |
+| **UNI2-h** ⚠ | 0.811 | 0.721 | 0.995 | −0.036 to +0.041 | **no** |
+| UNI2-h + H-optimus-0 ⚠ | **0.838** | **0.746** | 0.996 | **+0.013 to +0.054** | **no** |
+| UNI2-h + DINOv2-L ⚠ | 0.817 | 0.691 | 0.997 | −0.009 to +0.034 | no |
+| H-optimus-0 + DINOv2-L | 0.823 | 0.727 | 0.996 | +0.004 to +0.034 | yes |
+| all three ⚠ | 0.821 | 0.713 | 0.997 | +0.001 to +0.034 | no |
+
+Per-stage recall:
+
+| Stage | n | H-optimus-0 | UNI2-h ⚠ | UNI2 + H-opt ⚠ | H-opt + DINOv2 |
+|---|---|---|---|---|---|
+| I | 589 | 0.86 | 0.83 | 0.88 | 0.86 |
+| II-III | 421 | 0.86 | 0.88 | 0.90 | 0.88 |
+| IV | 23 | 0.57 | 0.39 | 0.57 | 0.52 |
+| V | 47 | 0.57 | 0.68 | 0.64 | 0.60 |
+| VI | 67 | 0.55 | 0.73 | 0.64 | 0.61 |
+| VII | 188 | 0.80 | 0.75 | 0.81 | 0.81 |
+| VIII | 75 | 0.59 | 0.71 | 0.69 | 0.73 |
+| IX | 24 | 0.83 | 0.75 | 0.83 | 0.79 |
+| X | 14 | 0.50 | 0.57 | 0.57 | 0.57 |
+| XI | 147 | 0.85 | 0.87 | 0.89 | 0.84 |
+| XII | 128 | 0.77 | 0.76 | 0.79 | 0.78 |
+
+Findings:
+
+- **UNI2 alone is not measurably better than H-optimus-0** (+0.7 points exact;
+  interval spans zero). It is better on V, VI and VIII and worse on IV; the
+  two get different tubules right (144 only UNI2, 133 only H-optimus-0; the
+  models agree on 83%). Its best view is native-scale patches (`s1`), H-optimus-0's
+  2x downsampled (`s05`).
+- **The best model is the UNI2-h + H-optimus-0 ensemble**: 83.8% exact, the
+  only gain over round 1 whose interval clears zero by more than a point. It
+  beats the best releasable ensemble (H-optimus-0 + DINOv2-L, 82.3%) by
+  1.5 points (95% CI +0.5 to +2.3). Balanced-accuracy differences are all
+  within noise (IV, IX, X have 14-24 tubules, mostly from one section).
+- Concatenating UNI2 and H-optimus features into one classifier did not help
+  (best 0.800 exact); averaging two separately trained heads did.
+- UNI2 did not overcome the label shortage: IV, V, VI and X stay at
+  0.39-0.73 recall in every model. More labels for those stages remain the
+  main lever.
+- As in round 1, the configuration (view, pooling) was picked on the same
+  leave-one-section-out screen, so all figures are slightly optimistic, equally
+  for every model.
+
+Annotation page: review run `staging-round3-2026-11-11-01` (blind A/B:
+UNI2-h vs H-optimus-0) holds **the same 164 tubules as the round 1 run**, so
+one pass of answers scores both runs (answers are stored per tubule). The
+Overview shows UNI2-h, H-optimus-0 and both ensembles. Ensembles are not in
+the A/B review; score them offline against the reviewer's answers from
+`ensemble_predictions.npz`.

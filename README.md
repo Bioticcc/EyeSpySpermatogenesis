@@ -4,6 +4,18 @@ Welcome to the reboot of EyeSpySpermatogenesis. For context, about a year ago I 
 
 We didnt even get to categorization, mainly because of how long training and annotation took. So this project went back on the shelf, and was abandoned. However, now after EyeSpySC and SCP, Ive realized that all along I did not actually need machine learning to find individual tubules. Similairly to the aforementioned repos, here we do simple (ish) image processing to deterministically sift through these images to crop out each individual tubules. Eventually, once thats fully done we will move on to analyzing them and actually training a stage identifier.
 
+Open annotations:
+```bash
+cd /home/kyle/Desktop/Adam/EyeSpySpermatogenesisRebooted
+scripts/annotate.sh
+```
+
+Close annotations:
+```bash
+pkill -f staging.annotate.server
+```
+
+
 Technical details below~
 
 ## Technical details
@@ -66,7 +78,51 @@ Known limits:
 - Outlines come from the 8× overview and are not refined at native resolution.
 - Missed tubules (recall) have not been measured.
 
-Next: staging trials, starting with how to use existing annotations.
+Staging has started and runs in up to five rounds; see the
+[staging plan](docs/STAGING_STRATEGY.md#plan-five-rounds-owner-2026-11-09).
+Rounds 1 and 3 train models on stages hand-written on printed sections by
+Yeongseok. Eight such sheets have been transferred onto the crops: 1,838
+accepted tubules covering all eleven classes (I, II–III, IV–XII), though IV,
+IX and X have only 15–26 examples each. Labels are viewed and checked on a
+local [annotation page](docs/ANNOTATION.md). Results so far (each section held
+out in turn; labels are unchecked transcriptions; expert review pending):
+
+| Round | Model | Exact | Balanced | Within one stage |
+|---|---|---|---|---|
+| 1 | H-optimus-0 features + cyclic classifier | 80% | 70% | 99.7% |
+| 1 | H-optimus-0 + DINOv2 ensemble (releasable) | 82% | 73% | 99.6% |
+| 2 | SATINN v2, as published (best masked setting) | 41% | — | 72% |
+| 3 ⚠ | UNI2-h features + cyclic classifier | 81% | 72% | 99.5% |
+| 3 ⚠ | UNI2-h + H-optimus-0 ensemble | 84% | 75% | 99.6% |
+
+> ⚠ **UNI2-h is research only and can never be released** (CC-BY-NC-ND-4.0
+> and the Mahmood lab's terms; decision 025). Any model that uses it is a
+> proof of concept for the lab and must not ship in a public or packaged
+> build. **UNI2-h is not included in this repository and requires a separate
+> download**: each user must request access to
+> [`MahmoodLab/UNI2-h`](https://huggingface.co/MahmoodLab/UNI2-h) on Hugging
+> Face under their own account. The repository contains only the code that
+> loads it, never the weights, embeddings or trained classifiers. It is used
+> here mainly as a progress checkpoint: a measure of how far staging can get
+> with today's labels, and how much a releasable model still has to gain.
+
+The annotation page's model-review **Overview** compares every method on a
+whole section, each model predicting a section it never saw in training.
+Section #91 below (stages V–XI) shows the paper stages and each model's
+stages:
+
+![Overview page, section #91: paper stages and each model's stages, by method](docs/images/readme_staging_overview_stages.jpg)
+
+The same section coloured by agreement with the paper (green exact, amber one
+stage off, red two or more off, grey not evaluated). SATINN is shown in its
+first, unmasked setting (31% overall; 41% with black masking):
+
+![Overview page, section #91: agreement of each model with the paper stages](docs/images/readme_staging_overview_agreement.jpg)
+
+Statistics for that section and for all 1,723 evaluated tubules (⚠ rows
+with uni2-h are research only):
+
+![Overview statistics table for all methods and models](docs/images/readme_staging_statistics.jpg)
 
 PAS counterstain, physical pixel spacing, acquisition equipment and pyramid
 structure remain unconfirmed. **40× does not establish µm/pixel**, and enlarging

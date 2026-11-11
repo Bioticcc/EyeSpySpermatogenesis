@@ -21,12 +21,27 @@ prototype = [
     "scikit-image==0.25.2",
     "pillow==13.0.0",
 ]
+# Staging round 1+ (decision 023): frozen feature extractor + small classifier.
+# Install torch/torchvision first from the CUDA 12.1 index (driver 535 cannot
+# run newer CUDA builds), e.g.
+#   pip install torch==2.5.1 torchvision==0.20.1 \
+#     --index-url https://download.pytorch.org/whl/cu121
+staging-ml = [
+    "torch==2.5.1",
+    "torchvision==0.20.1",
+    "timm==1.0.15",
+    "huggingface_hub==0.30.2",
+    "scikit-learn==1.6.1",
+    "matplotlib==3.10.1",
+    "mat-io==1.0.2",  # SATINN .mat -> PyTorch conversion only
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 "eyespy_spermatogenesis.segmentation" = ["*.html"]
+"eyespy_spermatogenesis.staging.annotate" = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -94,3 +94,6 @@ Thumbs.db
 # Every other image, crop and output stays local.
 !/docs/images/readme_v01_overlay.jpg
 !/docs/images/readme_v05_overlay.jpg
+!/docs/images/readme_staging_overview_stages.jpg
+!/docs/images/readme_staging_overview_agreement.jpg
+!/docs/images/readme_staging_statistics.jpg

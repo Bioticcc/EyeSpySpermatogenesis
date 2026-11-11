@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EyeSpy Staging</title>
+<link rel="icon" href="/static/logo.svg">
+<link rel="stylesheet" href="/static/house.css">
+<link rel="stylesheet" href="/static/app.css">
+<script>window.TOKEN = "__TOKEN__";</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand-block">
+      <div class="brand-mark"><img src="/static/logo.svg" alt="Logo"></div>
+      <div><strong>EyeSpy Staging</strong><span>Tubule annotation</span></div>
+    </div>
+    <nav aria-label="Primary navigation" id="nav" hidden>
+      <button class="nav-item active" data-view="annotate"><span class="nav-glyph">◉</span>Annotate</button>
+      <button class="nav-item" data-view="overview" id="nav-overview" hidden><span class="nav-glyph">▦</span>Overview</button>
+      <button class="nav-item" data-view="progress"><span class="nav-glyph">▤</span>Progress</button>
+      <button class="nav-item" data-view="help"><span class="nav-glyph">?</span>Keys &amp; help</button>
+      <button class="nav-item" id="logout"><span class="nav-glyph">⏻</span>Log out</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div id="who" class="who" hidden></div>
+      <div id="save-state" class="save-state"></div>
+      <p id="backup-state"></p>
+      <span class="version-chip" id="version">v–</span>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <!-- Login -->
+    <section id="view-login" class="page-stack login">
+      <header class="page-header"><div>
+        <p class="eyebrow">Start a session</p>
+        <h1>Who is annotating?</h1>
+        <p class="lede">Type your name. Your labels are saved under it as you go. Log out when you finish so the next person can start.</p>
+      </div></header>
+      <div class="panel login-panel">
+        <label class="field-label" for="name">Your name</label>
+        <input id="name" class="text-input" autocomplete="off" maxlength="60">
+        <div id="recent-names" class="chips"></div>
+        <p class="field-label">Mode</p>
+        <div class="mode-cards">
+          <label class="mode-card"><input type="radio" name="mode" value="staging" checked>
+            <strong>Staging</strong><span>Give each accepted tubule its stage (I–XII).</span></label>
+          <label class="mode-card"><input type="radio" name="mode" value="segmentation">
+            <strong>Segmentation review</strong><span>Check that each yellow outline traces one tubule.</span></label>
+          <label class="mode-card"><input type="radio" name="mode" value="model_review">
+            <strong>Model review</strong><span>Judge staging models: give your stage, then see the paper and Models A and B.</span></label>
+        </div>
+        <button class="button primary large" id="start">Start</button>
+        <div id="login-error" class="inline-error" hidden></div>
+      </div>
+    </section>
+
+    <!-- Annotate -->
+    <section id="view-annotate" class="annotate" hidden>
+      <div class="toolbar">
+        <label>Section <select id="f-source"></select></label>
+        <label>Show <select id="f-queue"></select></label>
+        <span id="position" class="position"></span>
+        <span class="spacer"></span>
+        <button class="button secondary" id="prev" title="Previous (←)">← Back</button>
+        <button class="button secondary" id="next" title="Skip (→)">Skip →</button>
+      </div>
+      <div class="work">
+        <div class="viewer" id="viewer">
+          <div class="stage-img" id="stage-img">
+            <img id="img" alt="Tubule crop">
+            <img id="outline" alt="">
+          </div>
+          <div class="viewer-hint">Scroll to zoom · drag to pan · double-click to reset · O outline</div>
+          <div class="empty-queue" id="empty" hidden></div>
+        </div>
+        <aside class="side">
+          <div class="panel tight">
+            <p class="eyebrow" id="meta-title">Tubule</p>
+            <div id="meta" class="meta"></div>
+            <div class="mine"><span>Your label</span><strong id="mine">—</strong></div>
+            <div id="others"></div>
+          </div>
+          <div class="panel tight">
+            <div class="keys" id="keys"></div>
+            <button class="button secondary small" id="clear" title="Delete">Clear my label (Del)</button>
+          </div>
+          <div class="panel tight review" id="review" hidden>
+            <p class="eyebrow">Answers <span id="review-run"></span></p>
+            <div class="review-rows">
+              <span>Paper stage</span><b id="rv-paper"></b>
+              <span>Model A</span><b id="rv-a"></b>
+              <span>Model B</span><b id="rv-b"></b>
+            </div>
+            <label class="review-blind"><input type="checkbox" id="rv-blind"> Blind mode: hide answers until I give my stage</label>
+            <p class="review-note">Models A and B are shuffled per tubule. Each prediction comes from a model that never saw this tubule's section.</p>
+          </div>
+          <div class="panel tight paper" id="paper" hidden>
+            <p class="eyebrow">Paper stage <span id="paper-who"></span></p>
+            <div class="paper-row">
+              <div id="paper-snips" class="paper-snips"></div>
+              <div>
+                <div class="paper-read" id="paper-read"></div>
+                <div class="paper-flags" id="paper-flags"></div>
+              </div>
+            </div>
+            <div class="paper-actions" id="paper-actions">
+              <button class="button secondary" id="paper-ok" title="T">✓ Reading matches (T)</button>
+              <button class="button secondary" id="paper-fix" title="F">Fix reading (F)</button>
+            </div>
+            <p class="paper-fixing" id="paper-fixing" hidden>Press the stage written on the paper…</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Progress -->
+    <section id="view-progress" class="page-stack" hidden>
+      <header class="page-header"><div>
+        <p class="eyebrow">Progress</p>
+        <h1 id="progress-title">Staging progress</h1>
+        <p class="lede" id="progress-lede"></p>
+      </div>
+      <div class="page-header-actions">
+        <button class="button primary" id="export">Export CSV</button>
+        <small id="export-note"></small>
+      </div></header>
+      <div class="metric-row" id="metrics"></div>
+      <div class="panel"><h2>By section</h2><div class="table-wrap"><table id="by-source"></table></div></div>
+      <div class="panel" id="stage-panel"><h2>Labels per stage</h2><div id="stage-bars"></div></div>
+      <div class="panel"><h2>By annotator</h2><div class="table-wrap"><table id="by-person"></table></div></div>
+    </section>
+
+    <!-- Model review overview -->
+    <section id="view-overview" class="page-stack" hidden>
+      <header class="page-header"><div>
+        <p class="eyebrow">Model review</p>
+        <h1>Method overview</h1>
+        <p class="lede">Each tested method's models on one whole section, side by side with the paper stages. Every model stage comes from a model that never saw this section. This view names the models, so look at it after any blind review, not before.</p>
+      </div></header>
+      <div class="toolbar ov-toolbar">
+        <label>Section <select id="ov-section"></select></label>
+        <label>Show <select id="ov-show">
+          <option value="stage">Model stages</option>
+          <option value="agree">Agreement with paper</option>
+        </select></label>
+        <span class="spacer"></span>
+        <span class="meta">Click a panel to open it full size.</span>
+      </div>
+      <div id="ov-legend" class="ov-legend"></div>
+      <div id="ov-grid" class="ov-grid"></div>
+      <div class="panel"><h2>Statistics</h2><div class="table-wrap"><table id="ov-stats"></table></div>
+        <p class="meta">Exact = same stage as the paper; within one = same or neighbouring stage (XII next to I). Balanced = mean of the per-stage recalls, so rare stages count equally. Paper stages are unchecked transcriptions.</p></div>
+      <div class="panel"><h2>Per-stage recall, all sections</h2><div class="table-wrap"><table id="ov-recall"></table></div></div>
+    </section>
+
+    <!-- Help -->
+    <section id="view-help" class="page-stack" hidden>
+      <header class="page-header"><div>
+        <p class="eyebrow">Help</p><h1>Keys</h1>
+        <p class="lede">Every label is saved the moment you press a key. The page also keeps a backup copy every hour. Please log out at the end of each session: that saves a CSV of everything.</p>
+      </div></header>
+      <div class="panel" id="help-keys"></div>
+    </section>
+  </main>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

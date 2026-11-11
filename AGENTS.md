@@ -12,10 +12,27 @@
   Tune only on reviewed sections, and name the held-out sections when
   reporting. When handing over a review page, tell the owner to save the
   exported CSV in that run's `outputs/tubule-review-*/` folder.
-- Next (owner, 2026-11-06): staging trial runs, starting with how to use the
-  existing annotations. This is planning and trials only; record the method
-  and taxonomy decisions in `docs/DECISIONS.md` before building a staging
-  pipeline. See `docs/STAGING_STRATEGY.md`.
+- Staging plan (owner, 2026-11-09; decision 023): up to five rounds, each
+  ending in a model that is evaluated. Rounds 1-3 done (2026-11-11); round 4
+  (hybrid) next. Round 1: a staging model on Yeongseok's paper labels only. Round 2: MATLAB paper's model;
+  round 3: UNI2 features on the same labels (done 2026-11-11; **research
+  only, never releasable: decision 025.** Keep the ⚠ notice on every doc or
+  result that uses UNI2; never commit its weights, embeddings or heads);
+  round 4: combine 2 with the best of 1/3; round 5: lab-wide manual annotation. Details and the
+  round 1 label counts: `docs/STAGING_STRATEGY.md`. Model/training method
+  not chosen yet; discuss with the owner first.
+- At the start of each staging session run
+  `.venv/bin/python scripts/check_new_staging_inputs.py`. If it lists new
+  Yeongseok TIFFs or sheets, **tell the owner** (they decide on a retrain).
+- Labels live on the local annotation page (`staging/annotate/`, guide
+  `docs/ANNOTATION.md`, decisions 020-024). Workspace
+  `outputs/staging-annotation-2026-11-06-01/`; never delete its
+  `labels.sqlite`, `backups/` or `exports/`. On-screen labels were reset on
+  2026-11-09; it now holds 2086 paper labels (8 sections). Paper reads are
+  transcriptions (machine: `outputs/paper-alignment-2026-11-06-01`; Claude:
+  `outputs/paper-alignment-2026-11-09-01`) until a person checks them.
+  `pkill -f staging.annotate.server` also kills a shell whose command line
+  contains that text; run it as its own command.
 - Confirmed: **mouse, PAS, FFPE, 40× native analysis detail**. PAS counterstain,
   acquisition convention, physical spacing, and all other unconfirmed fields in
   `docs/EXPERIMENTAL_SPECIFICATIONS.md` remain PENDING CONFIRMATION.
@@ -32,8 +49,9 @@
 - Separate tubule isolation from staging, including their confidence and rejection
   reasons. Preserve ambiguous and unsuitable cases.
 - Reuse existing software first; compare deterministic morphology and lightweight
-  pixel classification. No default U-Net, new model training, GUI stack, or large
-  dependency/weight downloads. The optional `io` extra is the tifffile/NumPy
+  pixel classification. No default U-Net, GUI stack, or large dependency/weight
+  downloads without owner approval. Model training is authorized only for the
+  staging rounds of decision 023. The optional `io` extra is the tifffile/NumPy
   metadata/reader trial; `prototype` adds SciPy/scikit-image for the authorized
   unvalidated comparator. Neither selects a production method or final reader.
 - `legacy` preserves the original tracked tree/history. New `main` is a clean

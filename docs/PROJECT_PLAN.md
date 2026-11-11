@@ -19,8 +19,10 @@ candidates, native crops, projected seed masks and provenance now exist with
 synthetic tests. On real sections, the membrane-network method (v0.5) now
 gives one-tubule crops that the owner judged good in about 9 of 10 recommended
 cases on held-out sections. See [extraction status](EXTRACTION_STATUS.md).
-Native boundary refinement, batch adapters and a GUI remain future work. The
-owner's next step (2026-11-06) is staging trials using existing annotations.
+Native boundary refinement, batch adapters and a GUI remain future work.
+Staging now follows a five-round plan (owner, 2026-11-09; decision 023); round 1
+trains on Yeongseok's paper annotations only. See
+[the staging strategy](STAGING_STRATEGY.md#plan-five-rounds-owner-2026-11-09).
 See [the prototype plan](OVERVIEW_PROTOTYPE.md) and
 [the Phase 1 guide](PHASE1_IO_VALIDATION.md).
 The clean main is published on GitHub, with the original project preserved on

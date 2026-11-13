@@ -20,9 +20,11 @@ synthetic tests. On real sections, the membrane-network method (v0.5) now
 gives one-tubule crops that the owner judged good in about 9 of 10 recommended
 cases on held-out sections. See [extraction status](EXTRACTION_STATUS.md).
 Native boundary refinement, batch adapters and a GUI remain future work.
-Staging now follows a five-round plan (owner, 2026-11-09; decision 023); round 1
-trains on Yeongseok's paper annotations only. See
-[the staging strategy](STAGING_STRATEGY.md#plan-five-rounds-owner-2026-11-09).
+Staging followed a five-round plan (owner, 2026-11-09; decision 023); rounds
+1–3 are done and round 4 is paused. Since 2026-11-13 the primary strategy is
+EyeSpy (H-optimus-0 + DINOv2-L features with our own classifier, decision 027);
+EyeSpy_v1 is the model in use. See
+[the staging strategy](STAGING_STRATEGY.md#eyespy-primary-strategy-2026-11-13).
 See [the prototype plan](OVERVIEW_PROTOTYPE.md) and
 [the Phase 1 guide](PHASE1_IO_VALIDATION.md).
 The clean main is published on GitHub, with the original project preserved on

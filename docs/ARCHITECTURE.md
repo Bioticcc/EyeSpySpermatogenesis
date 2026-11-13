@@ -4,7 +4,10 @@
 single-plane TIFF region reads, streamed overviews, provisional overview
 candidates and original-pixel crop/seed export are implemented. Only synthetic
 mechanics have been tested; real-image I/O and biology remain unvalidated.
-Native boundary refinement and staging remain unimplemented. See
+Native boundary refinement remains unimplemented. Staging exists as an
+experimental research pipeline on accepted crops (EyeSpy, decision 027;
+`staging/eyespy.py`), evaluated leave-one-section-out against unchecked
+labels; the `StageResult` contract below is still a proposal. See
 [OVERVIEW_PROTOTYPE.md](OVERVIEW_PROTOTYPE.md). The full contracts below remain
 proposals; the prototype manifest is a separate versioned trial format.
 

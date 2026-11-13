@@ -39,6 +39,23 @@ reboot; run `scripts/annotate.sh` again. Only this computer can open the page.
 then the rest. Staging shows accepted (unflagged) crops only; segmentation
 review shows every candidate.
 
+**Section map (staging).** On **Progress**, click a section in "By section".
+The whole section opens, each tubule coloured by the stage it has so far (your
+label first, then the newest on-screen label, then paper; or only yours),
+with its numeral; uncoloured tubules have no stage yet, dark grey ones are
+flagged crops that are not staged. It shows at a glance how complete a section
+is. Click a tubule to open it in Annotate and label it; labelling then carries
+on through the list as normal (if the tubule is not in your current list, the
+list switches to "All accepted tubules").
+
+**Segmentation review** shows the crops as a grid, like the original review
+sheet (owner, 2026-11-13). Judge the yellow outline. Click a crop or use ← →,
+then press a verdict key (1 Good, 2 Merged, 3 Split, 4 Partial / edge, 5 Not a
+tubule, 6 Unsure, 7 Outline spills); the next crop is selected. 0 or Delete
+clears, O hides outlines, the slider sets the crop size. Dashed borders are
+flagged crops. Double-click a crop (or press Enter) for the full-size view;
+Esc returns to the grid.
+
 **Paper stages.** Where a hand-staged printout was transferred, a panel shows
 the handwritten mark and the machine reading. If the reading is wrong press
 **F** then the stage written on the paper; if right, press **T**. This corrects
@@ -57,12 +74,87 @@ labels (mode `model_review`, not staging labels); the CSV has extra columns for
 the review run, paper stage and both models' stages. **Progress** shows each
 model's and the paper's agreement with each reviewer.
 
-**Overview** (model review only) shows a chosen section whole: the paper stages
-and every model of every tested method side by side, stage colours or
-agreement with the paper, plus per-section and overall statistics. It names
-the models, so open it after blind review, not before.
+**Current A/B pair (from 2026-11-13): EyeSpy_v1 vs EyeSpy_v2** (review run
+`eyespy-v1-vs-v2`, decision 027). Earlier runs compared round 1's and round 3's
+extractors (UNI2-h vs H-optimus-0); they stay in the database. The page always
+uses the newest run. Every run holds the same 164 tubules, so answers carry
+over. A new EyeSpy pair (no server restart needed; reload the page):
 
-Adding a review run (after `round1.evaluate`; restart the server afterwards):
+```bash
+.venv/bin/python -m eyespy_spermatogenesis.staging.eyespy review \
+  --workspace outputs/staging-annotation-2026-11-06-01 \
+  --models EyeSpy_v1 EyeSpy_v2
+```
+
+Any two names from `Model_Checkpoints/registry.json` work, including
+smoothed, class-weighted and experiment models.
+
+**Overview** (model review only) has two tabs. Both name the models, so open
+them after blind review, not before.
+
+- **Method overview** shows a chosen section whole: the paper stages and
+  every model of every tested method side by side, stage colours or agreement
+  with the paper, plus per-section and overall statistics.
+- **EyeSpy (selected strategy)** (decision 027) shows the primary strategy
+  only. One row per sample section (#112 early, #92 middle, #91 late stages):
+  the ground truth, then every saved EyeSpy model, in the order they were
+  saved. Below: the model history (scores, training labels, smoothing, class
+  weighting, intervals against the parent model and the previous version),
+  per-stage recall and each model's settings. Untick "Comparison models" to
+  hide the class-weighted ones. The page reads
+  `review/eyespy/index.json`, written from `Model_Checkpoints/registry.json`.
+  Open it directly with `#view=overview&tab=eyespy` after logging in.
+
+**Clicking a tubule** on any panel of either tab (owner, 2026-11-13) opens a
+grid of every tubule of that section with the same stage according to that
+panel, wrong ones first. Each card shows the tubule crop with its outline, the
+panel's stage, the ground truth and a score: green correct, amber one stage
+off, red two or more off. The grid can switch stage, group by the
+ground-truth stage instead ("what did the model call the true stage VI
+tubules?") and show only correct or only wrong ones. Clicking a card opens
+the tubule full size in the same zoomable viewer as Annotate, with every
+model's stage for it; ← → step through the grid, O toggles the outline, Esc
+goes back. All of this is read-only: nothing is labelled here. The ⤢ next to a
+panel's title opens the panel image itself. The click data are
+`review/maps/<section>.png` (which tubule is where) and per-tubule stages
+(`review/<run>/<section>/stages.json`; the EyeSpy `index.json`). Runs made
+before 2026-11-13 were backfilled once, and checked against their saved
+per-section scores, with
+`python -m eyespy_spermatogenesis.staging.annotate.clickmaps backfill WORKSPACE`;
+newer runs write them automatically.
+
+Saving a new EyeSpy version (adds three models: plain, smoothed, class
+weighted; never overwrites an earlier version). New on-screen labels are
+exported to a dated snapshot and embedded first (about 15 min per 300 crops
+on the RTX 4060):
+
+```bash
+B=/mnt/20TB_A/Adam/EyeSpySpermatogenesisRebooted
+E=$B/staging-eyespy/web-YYYY-MM-DD
+export HF_HUB_CACHE=$B/models/hf-cache HF_HUB_OFFLINE=1
+.venv/bin/python -m eyespy_spermatogenesis.staging.round1.data \
+  outputs/staging-annotation-2026-11-06-01 $E/data --origin web
+M=eyespy_spermatogenesis.staging.round1.embed
+.venv/bin/python -m $M $E/data $E/embeddings --model h-optimus-0 --views s05_raw
+.venv/bin/python -m $M $E/data $E/embeddings --model h-optimus-0 --views s05_raw --tta d4
+.venv/bin/python -m $M $E/data $E/embeddings --model dinov2-l --views s1_raw --tta d4
+.venv/bin/python -m eyespy_spermatogenesis.staging.eyespy train --version 3 \
+  --source $B/staging-round1/data:$B/staging-round1/embeddings \
+  --source $E/data:$E/embeddings \
+  --workspace outputs/staging-annotation-2026-11-06-01 --note "what changed"
+```
+
+Label experiments save one plain model tagged "experiment" (the tab's
+Experiments box hides them): `--experiment SLUG` with source options
+`:shift=N` (move every label of that source N stages; −1 = one earlier) and
+`:weight=W` (its tubules count W times in training), e.g.
+`--source $E/data:$E/embeddings:shift=-1:weight=3 --experiment web-shift-1-weight-3`.
+
+The newest snapshot of on-screen labels replaces older ones (pass only one
+`web-*` source); a tubule labelled in two sources stops the run. Reload the
+page afterwards; no server restart is needed.
+
+Adding a review run for the older round 1–3 methods (after `round1.evaluate`; restart the server afterwards):
 
 ```bash
 R=/mnt/20TB_A/Adam/EyeSpySpermatogenesisRebooted/staging-round1
@@ -100,6 +192,8 @@ Everything is in the workspace folder, e.g.
 | `images/` | Display JPEGs and outline PNGs (viewing only; not for analysis) |
 | `paper/` | Snippets of handwritten marks |
 | `review/<run>/` | Overview panels and statistics for each model-review run |
+| `review/eyespy/` | EyeSpy tab panels and `index.json` (from `Model_Checkpoints/registry.json`) |
+| `review/maps/`, `review/sections/` | Click maps (which tubule is where) and overview images per section, for the Overview click-through and the Progress section map |
 
 Use the newest file in `exports/` or `backups/`. CSV columns: `mode,
 source_name, source_sha256, candidate_label, tubule_id, recommended, annotator,

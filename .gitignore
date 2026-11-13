@@ -41,6 +41,7 @@ Thumbs.db
 /weights/
 /models/
 /checkpoints/
+/Model_Checkpoints/
 /downloads/
 *.[tT][iI][fF]
 *.[tT][iI][fF][fF]

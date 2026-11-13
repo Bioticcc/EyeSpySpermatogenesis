@@ -12,15 +12,20 @@
   Tune only on reviewed sections, and name the held-out sections when
   reporting. When handing over a review page, tell the owner to save the
   exported CSV in that run's `outputs/tubule-review-*/` folder.
-- Staging plan (owner, 2026-11-09; decision 023): up to five rounds, each
-  ending in a model that is evaluated. Rounds 1-3 done (2026-11-11); round 4
-  (hybrid) next. Round 1: a staging model on Yeongseok's paper labels only. Round 2: MATLAB paper's model;
-  round 3: UNI2 features on the same labels (done 2026-11-11; **research
-  only, never releasable: decision 025.** Keep the ⚠ notice on every doc or
-  result that uses UNI2; never commit its weights, embeddings or heads);
-  round 4: combine 2 with the best of 1/3; round 5: lab-wide manual annotation. Details and the
-  round 1 label counts: `docs/STAGING_STRATEGY.md`. Model/training method
-  not chosen yet; discuss with the owner first.
+- Staging (owner, 2026-11-13; decision 027): the primary strategy is
+  **EyeSpy** (`staging/eyespy.py`): frozen H-optimus-0 + DINOv2-L features
+  (releasable) with our own cyclic ridge classifier, trained on the annotation
+  page's labels. All new tests use EyeSpy. Every saved model goes in
+  `Model_Checkpoints/registry.json` (Git-ignored, never overwritten) as
+  `EyeSpy_vN` plus `- Smoothed (k, λ)` and `- Class weighted` (comparison)
+  variants; experiments are tagged. **EyeSpy_v1 (paper labels only) is the
+  model in use**; v2 and the label experiments with Yeongseok's on-screen
+  labels were worse (the on-screen labels run about half a stage later), so
+  check those labels before adding more. SATINN (round 2) and UNI2 (round 3;
+  **research only, never releasable: decision 025.** Keep the ⚠ notice on
+  every doc or result that uses UNI2; never commit its weights, embeddings or
+  heads) stay as reference models; round 4 is paused. Details:
+  `docs/STAGING_STRATEGY.md`; commands: `docs/ANNOTATION.md`.
 - At the start of each staging session run
   `.venv/bin/python scripts/check_new_staging_inputs.py`. If it lists new
   Yeongseok TIFFs or sheets, **tell the owner** (they decide on a retrain).
@@ -28,7 +33,10 @@
   `docs/ANNOTATION.md`, decisions 020-024). Workspace
   `outputs/staging-annotation-2026-11-06-01/`; never delete its
   `labels.sqlite`, `backups/` or `exports/`. On-screen labels were reset on
-  2026-11-09; it now holds 2086 paper labels (8 sections). Paper reads are
+  2026-11-09; it holds 2086 paper labels (8 sections) and, from 2026-11-12,
+  Yeongseok's on-screen labels (#105 complete, #106 started). Back up
+  `labels.sqlite` (sqlite backup API, into `backups/`) before writing to it
+  from a script. Paper reads are
   transcriptions (machine: `outputs/paper-alignment-2026-11-06-01`; Claude:
   `outputs/paper-alignment-2026-11-09-01`) until a person checks them.
   `pkill -f staging.annotate.server` also kills a shell whose command line

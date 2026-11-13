@@ -65,11 +65,25 @@ def stage_weights(y: np.ndarray) -> np.ndarray:
     return w / w.mean()
 
 
-def fit_vectors(xtr, ytr, xte, alpha, balanced: bool) -> np.ndarray:
-    """Fit a cyclic head and return its raw (cos, sin) outputs on ``xte``."""
+def sample_weights(y, balanced: bool, sw=None):
+    """Stage weighting and/or per-tubule weights ``sw``, mean 1 (None = off)."""
+    if not balanced and sw is None:
+        return None
+    w = stage_weights(y) if balanced else np.ones(len(y))
+    if sw is not None:
+        w = w * sw
+    return w / w.mean()
+
+
+def fit_vectors(xtr, ytr, xte, alpha, balanced: bool, sw=None) -> np.ndarray:
+    """Fit a cyclic head and return its raw (cos, sin) outputs on ``xte``.
+
+    ``sw``: optional per-tubule weights of the training rows (EyeSpy
+    experiments, 2026-11-13); None reproduces the 2026-11-11 heads."""
     c = Cyclic(alpha)
     t = np.c_[np.cos(c.ang[ytr]), np.sin(c.ang[ytr])]
-    kw = {"ridge__sample_weight": stage_weights(ytr)} if balanced else {}
+    w = sample_weights(ytr, balanced, sw)
+    kw = {"ridge__sample_weight": w} if w is not None else {}
     c.m.fit(xtr, t, **kw)
     return c.m.predict(xte)
 
@@ -79,12 +93,14 @@ def decode(v: np.ndarray) -> np.ndarray:
     return np.round(a / (2 * np.pi / K)).astype(int) % K
 
 
-def oof_vectors(x, y, g, alpha, balanced) -> np.ndarray:
+def oof_vectors(x, y, g, alpha, balanced, sw=None) -> np.ndarray:
     """Leave-one-section-out (cos, sin) outputs with a fixed alpha."""
     v = np.zeros((len(y), 2))
     for s in np.unique(g):
         te = g == s
-        v[te] = fit_vectors(x[~te], y[~te], x[te], alpha, balanced)
+        v[te] = fit_vectors(
+            x[~te], y[~te], x[te], alpha, balanced, None if sw is None else sw[~te]
+        )
     return v
 
 
@@ -131,7 +147,7 @@ def centres_of(rows, idx) -> np.ndarray:
 class Member:
     """One cyclic head; nested alpha; outer and inner out-of-fold vectors."""
 
-    def __init__(self, spec, x, y, g, balanced):
+    def __init__(self, spec, x, y, g, balanced, sw=None):
         self.spec, self.balanced = spec, balanced
         secs = np.unique(g)
         self.outer = np.zeros((len(y), 2))
@@ -140,15 +156,16 @@ class Member:
         for s in secs:
             te = g == s
             xt, yt, gt = x[~te], y[~te], g[~te]
+            swt = None if sw is None else sw[~te]
             best, best_v = None, None
             for a in GRID_ALPHA:
-                v = oof_vectors(xt, yt, gt, a, balanced)
+                v = oof_vectors(xt, yt, gt, a, balanced, swt)
                 score = metrics(yt, decode(v))["balanced_acc"]
                 if best is None or score > best[0]:
                     best, best_v = (score, a), v
             self.alpha[str(s)] = best[1]
             self.inner[str(s)] = best_v
-            self.outer[te] = fit_vectors(xt, yt, x[te], best[1], balanced)
+            self.outer[te] = fit_vectors(xt, yt, x[te], best[1], balanced, swt)
 
 
 def combine(members, y, g, nbrs_by_k, weights: str, smoothing: str):

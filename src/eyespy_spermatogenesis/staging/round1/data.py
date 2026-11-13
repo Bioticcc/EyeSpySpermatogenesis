@@ -2,9 +2,12 @@
 
 Usage::
 
-    python -m eyespy_spermatogenesis.staging.round1.data WORKSPACE OUT_DIR [--jobs 6]
+    python -m eyespy_spermatogenesis.staging.round1.data WORKSPACE OUT_DIR [--jobs 6] \
+        [--origin paper|web] [--annotator Yeongseok]
 
-Reads paper staging labels (``origin='paper'``) from ``WORKSPACE/labels.sqlite``
+Reads staging labels of one origin (default ``paper``; ``web`` = labels made
+on the annotation page, used by EyeSpy from 2026-11-13, decision 027) from
+``WORKSPACE/labels.sqlite``
 and writes, for every labelled candidate, the native-resolution crop
 (``crops/<id>.png``, lossless) and its v0.5 outline mask (``masks/<id>.png``)
 read from the original TIFF, plus ``labels.csv``. Originals are only read.
@@ -48,22 +51,24 @@ def crop_key(tubule_id: str) -> str:
     return hashlib.sha1(tubule_id.encode()).hexdigest()[:16]
 
 
-def load_labels(workspace: Path, annotator: str = "Yeongseok") -> list[dict]:
-    """One row per paper-labelled candidate (any stage value, incl. none)."""
+def load_labels(
+    workspace: Path, annotator: str = "Yeongseok", origin: str = "paper"
+) -> list[dict]:
+    """One row per labelled candidate of ``origin`` (any value, incl. none)."""
     db = sqlite3.connect(f"file:{workspace / 'labels.sqlite'}?mode=ro", uri=True)
     db.row_factory = sqlite3.Row
     rows = db.execute(
         """SELECT t.tubule_id, t.source_name, t.source_folder, t.label,
                   t.recommended, t.source_bounds, l.value, l.detail
            FROM labels l JOIN tubules t USING (tubule_id)
-           WHERE l.origin = 'paper' AND l.mode = 'staging' AND l.annotator = ?
+           WHERE l.origin = ? AND l.mode = 'staging' AND l.annotator = ?
            ORDER BY t.seq""",
-        (annotator,),
+        (origin, annotator),
     ).fetchall()
     db.close()
     out = []
     for r in rows:
-        d = json.loads(r["detail"])
+        d = json.loads(r["detail"] or "{}")
         out.append(
             {
                 "key": crop_key(r["tubule_id"]),
@@ -126,8 +131,14 @@ def _export_section(args):
     return run.name, done
 
 
-def export(workspace: Path, out_dir: Path, jobs: int = 6) -> list[dict]:
-    rows = load_labels(workspace)
+def export(
+    workspace: Path,
+    out_dir: Path,
+    jobs: int = 6,
+    origin: str = "paper",
+    annotator: str = "Yeongseok",
+) -> list[dict]:
+    rows = load_labels(workspace, annotator, origin)
     (out_dir / "crops").mkdir(parents=True, exist_ok=True)
     (out_dir / "masks").mkdir(parents=True, exist_ok=True)
     by_run = defaultdict(list)
@@ -149,8 +160,11 @@ def export(workspace: Path, out_dir: Path, jobs: int = 6) -> list[dict]:
             {
                 "workspace": str(workspace.resolve()),
                 "rows": len(rows),
+                "origin": origin,
+                "annotator": annotator,
                 "note": "Native-resolution crops (lossless PNG) and v0.5 outline "
-                "masks; originals unchanged. Labels are unchecked transcriptions.",
+                "masks; originals unchanged. Labels are unchecked "
+                + ("transcriptions." if origin == "paper" else "on-screen labels."),
             },
             indent=2,
         )
@@ -172,8 +186,10 @@ def main(argv=None):
     p.add_argument("workspace", type=Path)
     p.add_argument("out_dir", type=Path)
     p.add_argument("--jobs", type=int, default=6)
+    p.add_argument("--origin", choices=("paper", "web"), default="paper")
+    p.add_argument("--annotator", default="Yeongseok")
     a = p.parse_args(argv)
-    rows = export(a.workspace, a.out_dir, a.jobs)
+    rows = export(a.workspace, a.out_dir, a.jobs, a.origin, a.annotator)
     print(f"{len(rows)} labelled candidates -> {a.out_dir}")
 
 

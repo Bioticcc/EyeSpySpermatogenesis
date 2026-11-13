@@ -1,8 +1,12 @@
 # Staging strategy
 
-Staging is a separate consumer of isolated tubules. No classifier or feature
-extractor exists yet, and no pretrained model has been downloaded. Label
-taxonomy: 11 classes (I, II–III, IV–XII) plus "can't stage" (decision 020).
+Staging is a separate consumer of isolated tubules. Label taxonomy: 11
+classes (I, II–III, IV–XII) plus "can't stage" (decision 020). Current state
+(2026-11-13): the primary strategy is [EyeSpy](#eyespy-primary-strategy-2026-11-13)
+(H-optimus-0 + DINOv2-L frozen features, our own classifier; decision 027).
+**EyeSpy_v1** (paper labels only, 83.1% exact leave-one-section-out) is the
+model in use; adding the first on-screen labels made it worse (v2 and the label
+experiments below), pending a check of the on-screen labels.
 
 ## Plan: five rounds (owner, 2026-11-09)
 
@@ -15,8 +19,13 @@ training (or adopting) a model and evaluating it. If the result is unsatisfactor
 | 1 · **Baseline** | **Yeongseok's hand-staged paper sheets only** (`Inputs/Staging annotations/`, sections in `Inputs/YeongSeok_Staging/`), transferred onto v0.5 crops. Train a staging model on these labels alone. | Done 2026-11-09: 80% exact, 70% balanced, 99.7% within one stage (leave-one-section-out; below). Expert review pending. |
 | 2 · **SATINN** | SATINN v2's pretrained bright-field stager (MATLAB paper), used alone, no training on our labels. | First run 2026-11-09 (label-free preprocessing choice): 31% exact, 52% within one stage (below). Windows-app reference check still open (deferred by the owner 2026-11-11). Fine-tuned on our labels 2026-11-11: 75% exact, 49% balanced ([opt-in experiments](#opt-in-experiments-2026-11-11)). |
 | 3 · **UNI2** ⚠ | UNI2 (`MahmoodLab/UNI2-h`) as a frozen feature extractor, trained on the same Yeongseok paper labels as round 1. | Done 2026-11-11: UNI2 alone 81% exact / 72% balanced (no significant difference from round 1); UNI2 + H-optimus-0 ensemble 84% / 75% (below). Expert review pending. **⚠ Research only, never releasable (decision 025).** |
-| 4 · **Hybrid** | Combine the round 2 model with our own model from the Yeongseok labels (best of rounds 1 and 3); tune weights/settings to beat the best of rounds 1–3. | After rounds 1–3. |
-| 5 · **Manual** | All lab members annotate as many tubules as possible on the annotation page. | Only if rounds 1–4 fail. |
+| 4 · **Hybrid** | Combine the round 2 model with our own model from the Yeongseok labels (best of rounds 1 and 3); tune weights/settings to beat the best of rounds 1–3. | **Paused 2026-11-13** (decision 027): SATINN is not used going forward; reopen only if its original training data becomes available. |
+| 5 · **Manual** | All lab members annotate as many tubules as possible on the annotation page. | Under way: Yeongseok's first on-screen labels (2026-11-12) train [EyeSpy_v2](#eyespy-primary-strategy-2026-11-13). |
+
+**Primary strategy from 2026-11-13: [EyeSpy](#eyespy-primary-strategy-2026-11-13)**
+(decision 027): H-optimus-0 + DINOv2-L frozen features with our own classifier
+trained on the annotation page's labels. SATINN and UNI2 stay as reference
+models; all further tests use EyeSpy.
 
 Feature extractor licences (checked on the Hugging Face model pages,
 2026-11-09; recheck before release):
@@ -30,7 +39,8 @@ Feature extractor licences (checked on the Hugging Face model pages,
 | Virchow2 (Paige) | CC-BY-NC-ND-4.0, gated | Research only; no redistribution |
 | Phikon-v2 (Owkin) | Owkin non-commercial | Research only |
 
-Round 1 rules:
+Round 1 rules (rounds 1–3 only; EyeSpy may also train on on-screen labels,
+decision 027):
 
 - Train only on `origin = paper` labels (annotator Yeongseok). On-screen labels
   were reset on 2026-11-09 (decision 024); round 1 does not use them.
@@ -445,3 +455,122 @@ Findings:
   AdaBN and are unaffected.
 - The stages short of labels (IV, V, VI, IX, X) remain the limit for every
   method; more labels for them are still the main lever.
+
+## EyeSpy: primary strategy (2026-11-13)
+
+Owner direction (decision 027): staging goes forward with **EyeSpy**: frozen
+H-optimus-0 + DINOv2-L features (Apache-2.0, releasable) and our own
+classifier, trained on the annotation page's labels. Three members, equal
+weights: H-optimus-0 (`s05_raw`, mean), H-optimus-0 rotation/flip averaged,
+DINOv2-L rotation/flip averaged (`s1_raw`, mean); each a cyclic ridge head.
+SATINN and UNI2 stay as reference models (Overview > Method overview); round 4
+is paused.
+
+Code: `staging/eyespy.py`. Saved models: `Model_Checkpoints/` in the project
+folder (Git-ignored): `registry.json` (history of every model and its
+settings, never overwritten), `eyespy_vN/heads.npz` (classifier weights; the
+extractors stay in the Hugging Face cache, revisions recorded),
+`heads_class_weighted.npz`, `predictions.npz` (leave-one-section-out stages).
+Each version saves three models:
+
+| Model | What it is |
+|---|---|
+| `EyeSpy_vN` | The plain model; headline numbers. |
+| `EyeSpy_vN - Smoothed (k, λ)` | Same classifier; neighbour smoothing at prediction time (decision 026). |
+| `EyeSpy_vN - Class weighted` | Comparison only (1 / stage count weights), kept to see whether it ever helps. |
+
+Scores are leave-one-section-out with every choice (alpha, smoothing k and λ)
+made per held-out section from its training sections, as on 2026-11-11. The
+checkpoint is then fitted on all sections; its alpha and (k, λ) are chosen by
+leave-one-section-out on all of them (the values in the model's name). The
+Overview > EyeSpy tab shows sample sections #112 (I, II–III, XII), #92 (V–VIII)
+and #91 (VI–X) with the ground truth and every saved model (leave-one-section-
+out predictions, never the checkpoint). "Paper sections" scores compare
+versions on the same 1723 paper-labelled tubules.
+
+### Results
+
+| Model | Training labels | Exact | Balanced | Within one | Paper sections exact | Δ exact vs v1 (95% CI) |
+|---|---|---|---|---|---|---|
+| **EyeSpy_v1** | paper, 8 sections (1723) | **0.831** | **0.732** | 0.997 | 0.831 | — |
+| EyeSpy_v1 - Smoothed (k=12, λ=0.30) | same | 0.837 | 0.735 | 0.997 | 0.837 | −0.005 to +0.020 vs v1 plain |
+| EyeSpy_v1 - Class weighted | same | 0.799 | 0.741 | 0.996 | 0.799 | −0.060 to −0.004 vs v1 plain |
+| EyeSpy_v2 | + on-screen, #105/#106 (255) | 0.754 | 0.643 | 0.992 | 0.790 | **−0.084 to −0.006** |
+| EyeSpy_v2 - Smoothed (k=4, λ=0.00) | same | 0.756 | 0.628 | 0.992 | 0.796 | −0.091 to +0.001 vs v1 smoothed |
+| EyeSpy_v2 - Class weighted | same | 0.706 | 0.619 | 0.992 | 0.745 | −0.084 to −0.029 vs v1 class weighted |
+
+v1 reproduces the 2026-11-11 three-part ensemble exactly. Smoothing is within
+noise; class weighting again trades exact for balanced accuracy.
+
+**v2 is worse than v1, and the on-screen labels look shifted by one stage
+relative to the paper labels.** Adding Yeongseok's 255 on-screen labels
+(2026-11-12; #105 and #106, partly annotated, mostly IV–VIII) lowered every
+v2 model on the paper sections. Stage recall on paper sections fell for V
+(0.62 → 0.26) and VI (0.64 → 0.33): v2 calls paper V mostly VI (31 of 47)
+and paper VI mostly VII (45 of 67). v1, which never saw #105/#106, agrees
+exactly with only 47.5% of the on-screen labels but within one stage with
+95.7%, and its errors run one way: it is one stage **earlier** than the
+on-screen label for 118 tubules and one stage later for only 5 (on-screen VII
+→ v1 VI 43 times, VI → V 35 times, IV → II–III 19 times). The two label sets
+therefore seem to follow different staging boundaries. Which is right cannot
+be decided from the data: Yeongseok may stage differently on screen than on
+paper, the paper readings (sheets 2–8 read by Claude from photos, unchecked)
+may be offset, or the two 44-day animals may differ. v2's smoothing choice
+was λ = 0 (no smoothing helped), so its "Smoothed" checkpoint equals the plain
+one; its scored row differs only because some held-out sections chose
+smoothing.
+
+**v1 stays the model to use** until the offset is explained. The quickest test
+is to have Yeongseok stage some paper-section tubules on screen (for example
+the 164-tubule model-review run, which already exists) and compare with his
+paper labels for the same tubules.
+
+### Label experiments (owner, 2026-11-13)
+
+Owner request: test whether the on-screen labels improve the model once (1)
+moved back one stage or (2) given more weight than the paper labels, since
+Yeongseok is still learning to stage and the newer labels may be the more
+accurate ones. Each is one plain model tagged "experiment" in the registry
+(`--experiment`, source options `shift` and `weight`); same 1978 tubules and
+leave-one-section-out scoring as v2. "Paper sections" compares with v1 on the
+same 1723 tubules; "#105/#106" scores the on-screen sections against the
+labels each model was trained with (shifted, for the shift rows) and, in
+brackets, against the original on-screen labels.
+
+| Model | Paper exact | Paper balanced | Δ exact vs v1 (95% CI) | #105/#106 exact | Paper recall V / VI / VII |
+|---|---|---|---|---|---|
+| EyeSpy_v1 (paper only) | **0.831** | **0.732** | — | (0.475, v1 never saw them) | 0.62 / 0.64 / 0.82 |
+| EyeSpy_v2 (on-screen as given) | 0.790 | 0.660 | −0.084 to −0.006 | 0.510 | 0.26 / 0.33 / 0.92 |
+| shift −1 | 0.785 | 0.720 | −0.105 to −0.001 | 0.447 (0.471) | 0.77 / 0.87 / 0.39 |
+| weight 2 | 0.784 | 0.663 | −0.102 to −0.001 | 0.510 | 0.19 / 0.33 / 0.95 |
+| weight 5 | 0.754 | 0.622 | −0.143 to −0.023 | 0.522 | 0.17 / 0.21 / 0.91 |
+| shift −1, weight 3 | 0.761 | 0.690 | −0.137 to −0.014 | 0.455 (0.463) | 0.72 / 0.87 / 0.30 |
+
+Findings:
+
+- **No variant beats v1.** Every model with the on-screen labels is worse on
+  the paper sections, whichever way they are adjusted.
+- **The offset is not a whole stage.** v1 agrees with 47.5% of the original
+  on-screen labels and with about 46% of the shifted ones: roughly half the
+  on-screen labels sit one stage later than v1, half agree. How many sit later
+  depends on the stage (on-screen IV 70%, V 60%, VI 66%, VII 32%, VIII 43%).
+  Shifting all of them fixes one half and breaks the other: paper V and VI
+  improve (0.77, 0.87) but VII collapses (0.39), because 134 on-screen VII
+  become VI.
+- **Weighting cannot show whether the newer labels are better, with this
+  data.** Heavier weights move the model toward the on-screen convention
+  (paper V recall 0.26 → 0.17), but its score on #105/#106 barely changes
+  (0.51 → 0.52): when #105 is held out, only #106's 26 on-screen labels
+  remain in training, so the new convention is never tested on a section it
+  was not learned from. Testing it needs on-screen labels from more sections
+  (or the same tubules staged both ways).
+- The decisive test is unchanged: Yeongseok stages tubules on screen that he
+  also staged on paper; the per-stage disagreement then shows which boundaries
+  moved. v1 stays the model to use.
+
+**Blind review set up for that test (2026-11-13).** The annotation page's
+model review now compares **EyeSpy_v1 vs EyeSpy_v2** (run `eyespy-v1-vs-v2`;
+`eyespy review`), on the same 164 paper-labelled tubules as the round 1 and 3
+review runs. Every one has a paper stage from Yeongseok, so his on-screen
+answers there measure his own paper-to-screen difference stage by stage, and
+score both models against an independent eye. No answers yet.

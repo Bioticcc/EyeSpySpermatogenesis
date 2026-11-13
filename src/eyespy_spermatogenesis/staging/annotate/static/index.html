@@ -62,12 +62,25 @@
       <div class="toolbar">
         <label>Section <select id="f-source"></select></label>
         <label>Show <select id="f-queue"></select></label>
+        <button class="button secondary small" id="seg-back" hidden>▦ Back to grid (Esc)</button>
         <span id="position" class="position"></span>
         <span class="spacer"></span>
         <button class="button secondary" id="prev" title="Previous (←)">← Back</button>
         <button class="button secondary" id="next" title="Skip (→)">Skip →</button>
       </div>
-      <div class="work">
+      <!-- Segmentation mode: grid of crops, as in the original review sheet (owner, 2026-11-13) -->
+      <div class="seg-wrap" id="seg-wrap" hidden>
+        <div class="seg-tools">
+          <div class="seg-keys" id="seg-keys"></div>
+          <span class="spacer"></span>
+          <label class="seg-ctl"><input type="checkbox" id="seg-outline" checked> Outlines (O)</label>
+          <label class="seg-ctl">Size <input type="range" id="seg-size" min="120" max="384" value="190"></label>
+          <span class="meta" id="seg-count"></span>
+        </div>
+        <p class="meta seg-help">Judge the <b>yellow outline</b>. Click a crop or use <kbd>←</kbd> <kbd>→</kbd>, then press a number; the next crop is selected. <kbd>0</kbd> or <kbd>Delete</kbd> clears. Dashed borders are flagged crops. Double-click a crop to see it full size.</p>
+        <div class="tg-grid seg-grid" id="seg-grid"></div>
+      </div>
+      <div class="work" id="work">
         <div class="viewer" id="viewer">
           <div class="stage-img" id="stage-img">
             <img id="img" alt="Tubule crop">
@@ -137,9 +150,15 @@
     <section id="view-overview" class="page-stack" hidden>
       <header class="page-header"><div>
         <p class="eyebrow">Model review</p>
-        <h1>Method overview</h1>
-        <p class="lede">Each tested method's models on one whole section, side by side with the paper stages. Every model stage comes from a model that never saw this section. This view names the models, so look at it after any blind review, not before.</p>
+        <h1>Overview</h1>
       </div></header>
+      <div class="ov-tabs" role="tablist">
+        <button class="ov-tab active" role="tab" data-tab="methods" id="ov-tab-methods">Method overview</button>
+        <button class="ov-tab" role="tab" data-tab="eyespy" id="ov-tab-eyespy">EyeSpy (selected strategy)</button>
+      </div>
+
+      <div id="ov-pane-methods" class="page-stack">
+      <p class="lede">Each tested method's models on one whole section, side by side with the paper stages. Every model stage comes from a model that never saw this section. This view names the models, so look at it after any blind review, not before.</p>
       <div class="toolbar ov-toolbar">
         <label>Section <select id="ov-section"></select></label>
         <label>Show <select id="ov-show">
@@ -147,13 +166,34 @@
           <option value="agree">Agreement with paper</option>
         </select></label>
         <span class="spacer"></span>
-        <span class="meta">Click a panel to open it full size.</span>
+        <span class="meta">Click a tubule to list every tubule of its stage · ⤢ opens a panel full size.</span>
       </div>
       <div id="ov-legend" class="ov-legend"></div>
       <div id="ov-grid" class="ov-grid"></div>
       <div class="panel"><h2>Statistics</h2><div class="table-wrap"><table id="ov-stats"></table></div>
         <p class="meta">Exact = same stage as the paper; within one = same or neighbouring stage (XII next to I). Balanced = mean of the per-stage recalls, so rare stages count equally. Paper stages are unchecked transcriptions.</p></div>
       <div class="panel"><h2>Per-stage recall, all sections</h2><div class="table-wrap"><table id="ov-recall"></table></div></div>
+      </div>
+
+      <div id="ov-pane-eyespy" class="page-stack" hidden>
+      <p class="lede" id="es-strategy"></p>
+      <div class="toolbar ov-toolbar">
+        <label>Show <select id="es-show">
+          <option value="stage">Model stages</option>
+          <option value="agree">Agreement with ground truth</option>
+        </select></label>
+        <label><input type="checkbox" id="es-comparison" checked> Comparison models (class weighting)</label>
+        <label><input type="checkbox" id="es-experiments" checked> Experiments</label>
+        <span class="spacer"></span>
+        <span class="meta">Click a tubule to list every tubule of its stage · ⤢ opens a panel full size.</span>
+      </div>
+      <div id="es-legend" class="ov-legend"></div>
+      <div id="es-grid" class="ov-grid"></div>
+      <div class="panel"><h2>Model history</h2><div class="table-wrap"><table id="es-history"></table></div>
+        <p class="meta">Scores are leave-one-section-out: every tubule is staged by a model that never saw its section. "Paper sections" scores every version on the same tubules (Yeongseok's paper sheets), so versions compare like for like. Δ: 95% interval of the difference in exact accuracy, in percentage points (section bootstrap). Smoothed models use the same classifier as their parent, with neighbour smoothing at prediction time (opt-in, never the default). The full history with every setting is <code>Model_Checkpoints/registry.json</code>.</p></div>
+      <div class="panel"><h2>Per-stage recall, all scored tubules</h2><div class="table-wrap"><table id="es-recall"></table></div></div>
+      <div class="panel"><h2>Settings</h2><div class="table-wrap"><table id="es-settings"></table></div></div>
+      </div>
     </section>
 
     <!-- Help -->
@@ -165,6 +205,88 @@
       <div class="panel" id="help-keys"></div>
     </section>
   </main>
+</div>
+
+<!-- Section map: opened from Progress > By section in staging mode (owner, 2026-11-13). -->
+<div id="sm" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="sm-title">
+  <div class="modal-box">
+    <header class="tg-head">
+      <div>
+        <p class="eyebrow">Section map · stages so far</p>
+        <h2 id="sm-title"></h2>
+        <p class="meta" id="sm-summary"></p>
+      </div>
+      <button class="button secondary small" id="sm-close">Close (Esc)</button>
+    </header>
+    <div class="toolbar tg-toolbar">
+      <label>Show <select id="sm-who">
+        <option value="all" title="Yours first, then the newest on-screen label, then paper">Everyone's labels</option>
+        <option value="mine">Only my labels</option>
+      </select></label>
+      <span class="spacer"></span>
+      <span class="meta" id="sm-hover">Click a tubule to label it in Annotate.</span>
+    </div>
+    <div id="sm-legend" class="ov-legend"></div>
+    <div class="sm-canvas-wrap"><canvas id="sm-canvas"></canvas></div>
+  </div>
+</div>
+
+<!-- Tubule grid: opened by clicking a tubule on an Overview panel (owner, 2026-11-13). Read-only. -->
+<div id="tg" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="tg-title">
+  <div class="modal-box">
+    <header class="tg-head">
+      <div>
+        <p class="eyebrow" id="tg-eyebrow"></p>
+        <h2 id="tg-title"></h2>
+        <p class="meta" id="tg-summary"></p>
+      </div>
+      <button class="button secondary small" id="tg-close">Close (Esc)</button>
+    </header>
+    <div class="toolbar tg-toolbar">
+      <label>Stage <select id="tg-stage"></select></label>
+      <label>Grouped by <select id="tg-by">
+        <option value="panel">this panel's stage</option>
+        <option value="truth">ground-truth stage</option>
+      </select></label>
+      <label>Show <select id="tg-filter">
+        <option value="all">All</option>
+        <option value="exact">Correct</option>
+        <option value="one">One stage off</option>
+        <option value="far">Two or more off</option>
+      </select></label>
+      <label><input type="checkbox" id="tg-outline" checked> Outlines</label>
+      <span class="spacer"></span>
+      <span class="meta">Click a tubule to view it full size.</span>
+    </div>
+    <div id="tg-grid" class="tg-grid"></div>
+  </div>
+</div>
+
+<!-- Single tubule, full size (same viewer as Annotate). Read-only. -->
+<div id="tv" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="tv-title">
+  <div class="modal-box tv-box">
+    <div class="viewer" id="tv-viewer">
+      <div class="stage-img" id="tv-stage"><img id="tv-img" alt="Tubule crop"><img id="tv-outline" class="tv-outline" alt=""></div>
+      <div class="viewer-hint">Scroll to zoom · drag to pan · double-click to reset · O outline · ← → previous / next · Esc back to the grid</div>
+    </div>
+    <aside class="side">
+      <div class="panel tight">
+        <p class="eyebrow" id="tv-eyebrow"></p>
+        <h2 id="tv-title"></h2>
+        <div id="tv-meta" class="meta"></div>
+      </div>
+      <div class="panel tight">
+        <p class="eyebrow">Stage by each source</p>
+        <div class="table-wrap"><table id="tv-table"></table></div>
+      </div>
+      <div class="tv-nav">
+        <button class="button secondary small" id="tv-prev">← Previous</button>
+        <span id="tv-pos" class="meta"></span>
+        <button class="button secondary small" id="tv-next">Next →</button>
+      </div>
+      <button class="button secondary small" id="tv-close">Back to the grid (Esc)</button>
+    </aside>
+  </div>
 </div>
 
 <div id="toast" class="toast" hidden></div>

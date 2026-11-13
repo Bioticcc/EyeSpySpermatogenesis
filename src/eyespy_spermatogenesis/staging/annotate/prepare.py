@@ -180,6 +180,10 @@ def prepare(run_parent: Path, workspace: Path, *, max_side=1600, quality=90, job
     )
     info_path.write_text(json.dumps(info, indent=2))
     store.close()
+    # Section maps for the Progress page (overview image + click map).
+    from eyespy_spermatogenesis.staging.annotate.clickmaps import write_sections
+
+    write_sections(workspace)
     return all_rows
 
 

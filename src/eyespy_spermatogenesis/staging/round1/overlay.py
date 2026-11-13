@@ -29,6 +29,7 @@ import tifffile
 from PIL import Image, ImageDraw, ImageFont
 from scipy import ndimage as ndi
 
+from eyespy_spermatogenesis.staging.annotate.clickmaps import write_map, write_stages
 from eyespy_spermatogenesis.staging.round1.data import STAGES, run_dir
 from eyespy_spermatogenesis.staging.round1.evaluate import cyc_dist
 
@@ -136,6 +137,9 @@ def write_overview(workspace, run, method, rows, pred_of, models):
             out / slug / "paper.jpg", quality=85
         )
         entry = {"section": section, "paper": f"{slug}/paper.jpg", "models": {}}
+        # Click data for the page (tubule grid; owner 2026-11-13).
+        write_stages(out, rs, pred_of, section)
+        write_map(workspace, section, folder)
         for mi, (name, pm) in enumerate(pred_of.items()):
             mc, mt, ac, dist = {}, {}, {}, []
             for r in rs:

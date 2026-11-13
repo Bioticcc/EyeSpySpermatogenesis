@@ -129,3 +129,17 @@ def test_preprocess_recentres_and_scales_contrast():
     g = round2.preprocess(x, 2.0, mean)
     # image mean 110 moved to 150; deviations of +-10 doubled
     assert g[0, 0, 0, 0] == pytest.approx(130) and g[0, 0, 1, 0] == pytest.approx(170)
+
+
+def test_finetune_merges_ii_and_iii_and_augments_shape():
+    torch = pytest.importorskip("torch")
+    from eyespy_spermatogenesis.staging import satinn_finetune as ft
+
+    p12 = torch.softmax(torch.randn(4, 12), 1)
+    p11 = ft.merge_probs(p12)
+    assert p11.shape == (4, 11)
+    torch.testing.assert_close(p11.sum(1), torch.ones(4))
+    torch.testing.assert_close(p11[:, 1], p12[:, 1] + p12[:, 2])
+    x = np.arange(2 * 5 * 5 * 3, dtype=np.uint8).reshape(2, 5, 5, 3)
+    a = ft.augment(x, np.random.default_rng(1))
+    assert a.shape == x.shape and sorted(a.ravel()) == sorted(x.ravel())

@@ -13,7 +13,7 @@ training (or adopting) a model and evaluating it. If the result is unsatisfactor
 | Round | Labels / model | Status |
 |---|---|---|
 | 1 · **Baseline** | **Yeongseok's hand-staged paper sheets only** (`Inputs/Staging annotations/`, sections in `Inputs/YeongSeok_Staging/`), transferred onto v0.5 crops. Train a staging model on these labels alone. | Done 2026-11-09: 80% exact, 70% balanced, 99.7% within one stage (leave-one-section-out; below). Expert review pending. |
-| 2 · **SATINN** | SATINN v2's pretrained bright-field stager (MATLAB paper), used alone, no training on our labels. | First run 2026-11-09 (label-free preprocessing choice): 31% exact, 52% within one stage (below). Windows-app reference check still open (deferred by the owner 2026-11-11). |
+| 2 · **SATINN** | SATINN v2's pretrained bright-field stager (MATLAB paper), used alone, no training on our labels. | First run 2026-11-09 (label-free preprocessing choice): 31% exact, 52% within one stage (below). Windows-app reference check still open (deferred by the owner 2026-11-11). Fine-tuned on our labels 2026-11-11: 75% exact, 49% balanced ([opt-in experiments](#opt-in-experiments-2026-11-11)). |
 | 3 · **UNI2** ⚠ | UNI2 (`MahmoodLab/UNI2-h`) as a frozen feature extractor, trained on the same Yeongseok paper labels as round 1. | Done 2026-11-11: UNI2 alone 81% exact / 72% balanced (no significant difference from round 1); UNI2 + H-optimus-0 ensemble 84% / 75% (below). Expert review pending. **⚠ Research only, never releasable (decision 025).** |
 | 4 · **Hybrid** | Combine the round 2 model with our own model from the Yeongseok labels (best of rounds 1 and 3); tune weights/settings to beat the best of rounds 1–3. | After rounds 1–3. |
 | 5 · **Manual** | All lab members annotate as many tubules as possible on the annotation page. | Only if rounds 1–4 fail. |
@@ -371,3 +371,77 @@ one pass of answers scores both runs (answers are stored per tubule). The
 Overview shows UNI2-h, H-optimus-0 and both ensembles. Ensembles are not in
 the A/B review; score them offline against the reviewer's answers from
 `ensemble_predictions.npz`.
+
+## Opt-in experiments (2026-11-11)
+
+Owner request: try settings that might raise accuracy, every one reversible
+(decision 026). Each is a switch or a separate module; with every switch off,
+`staging/experiments.py` reproduces the round 1 and round 3 numbers exactly.
+Same 1723 tubules, leave-one-section-out; every choice (regularization,
+ensemble weights, smoothing k and strength) is made per held-out section from
+its training sections only. Intervals are a section bootstrap (2000
+resamples) of the difference from plain H-optimus-0 (0.804 exact).
+Results in `outputs/staging-experiments-2026-11-11-01/` (one folder per
+comparison, each with `summary.md` incl. per-stage recall).
+
+| Switch | Where | Default |
+|---|---|---|
+| Rotation/flip averaging (8 copies per patch, mean embedding) | `round1/embed.py --tta d4` → `embeddings/<model>_d4/` | off |
+| Class weighting (1/stage count) | `experiments.py --balanced on` | off |
+| Tuned ensemble weights | `experiments.py --weights nested` | equal |
+| Neighbour smoothing (blend with nearest tubules' predictions, same section; never their labels) | `experiments.py --smooth nested` | **off; never the default** (decision 026) |
+| SATINN fine-tuning / AdaBN | `staging/satinn_finetune.py` | separate module |
+
+### Results to show
+
+Headline (unsmoothed) rows first; smoothed rows are opt-in and labelled.
+⚠ = uses UNI2-h, research only, never releasable (decision 025).
+
+| Model | Smoothed | Exact | Balanced | Within one | Δ exact (95% CI) | Releasable |
+|---|---|---|---|---|---|---|
+| H-optimus-0 (round 1) | no | 0.804 | 0.704 | 0.997 | — | yes |
+| H-optimus-0, rotation/flip averaged | no | 0.818 | 0.691 | 0.996 | +0.001 to +0.028 | yes |
+| H-optimus-0 + DINOv2-L (round 3) | no | 0.823 | 0.727 | 0.996 | +0.004 to +0.034 | yes |
+| **H-optimus-0 + H-optimus-0 rot. + DINOv2-L rot.** | no | **0.831** | **0.732** | 0.997 | **+0.008 to +0.044** | **yes** |
+| UNI2-h + H-optimus-0 (round 3) ⚠ | no | 0.838 | 0.746 | 0.996 | +0.013 to +0.054 | no |
+| SATINN, pretrained (round 2 setting) | no | 0.411 | 0.387 | 0.717 | — | yes (CC BY 4.0) |
+| SATINN, fine-tuned on our labels | no | 0.750 | 0.489 | 0.973 | — | yes (CC BY 4.0) |
+| H-optimus-0 | **yes** | 0.822 | 0.706 | 0.995 | +0.011 to +0.025 | yes |
+| H-optimus-0 + H-opt. rot. + DINOv2-L rot. | **yes** | 0.837 | 0.735 | 0.997 | +0.020 to +0.045 | yes |
+| UNI2-h + H-optimus-0 ⚠ | **yes** | 0.838 | 0.737 | 0.998 | +0.018 to +0.050 | no |
+
+Findings:
+
+- **Best releasable model: the three-part ensemble** (plain H-optimus-0,
+  rotation-averaged H-optimus-0, rotation-averaged DINOv2-L; equal weights):
+  83.1% exact, 73.2% balanced, within 0.7 points of the research-only UNI2
+  ensemble. Its gain over the round 3 releasable pair (+0.8 points) was not
+  tested directly and is probably within noise.
+- **Rotation/flip averaging** helps H-optimus-0 (+1.4 points) and DINOv2-L
+  (+0.4) a little and does **not** help UNI2-h (0.798 vs 0.811). Averaging
+  both members of the releasable pair alone gives 0.825, no better than the
+  plain pair; the gain comes from adding the rotated copies as extra members.
+- **Smoothing** gives +1.8 points on a single model (interval clears zero)
+  but little or nothing on the ensembles (UNI2 ensemble unchanged at 0.838).
+  It costs isolated stages: IV recall falls on most variants, and balanced
+  accuracy does not improve. Keep it opt-in (decision 026).
+- **Class weighting** trades exact for balanced accuracy (e.g. UNI2 ensemble
+  0.838 → 0.799 exact, 0.746 → 0.749 balanced); no net gain. Not
+  recommended.
+- **Tuned ensemble weights** do worse than 50/50 (0.832 vs 0.838): with eight
+  sections the nested choice is noisy. Keep equal weights.
+- **SATINN fine-tuning** (Linux, PyTorch conversion; ResNet-50, 8 epochs,
+  AdamW lr 1e-4, rotation/flip augmentation, batch-norm statistics frozen
+  after AdaBN, 500 px black-masked boxes) lifts SATINN from 41% to 75% exact
+  but stays below every frozen-feature model and loses the rare stages
+  (recall IV 0.04, IX 0.12, X 0.00). AdaBN alone (statistics re-estimated
+  without labels): 57% exact. Per section 0.50-0.83; #92 is weakest (0.50).
+  No Windows PC was needed. Its probabilities (`satinn-finetune/
+  predictions.npz`) are a candidate input for round 4.
+- Implementation note: AdaBN must estimate batch-norm layers one at a time in
+  network order, in fp32; estimating all layers in one pass, or in fp16,
+  diverges on this network (found and fixed 2026-11-11; the guard now stops
+  any run with non-finite outputs). Round 2's published numbers do not use
+  AdaBN and are unaffected.
+- The stages short of labels (IV, V, VI, IX, X) remain the limit for every
+  method; more labels for them are still the main lever.

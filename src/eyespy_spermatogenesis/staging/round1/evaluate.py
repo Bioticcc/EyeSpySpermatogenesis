@@ -196,11 +196,12 @@ def features(emb_dir: Path, model: str, view: str, how: str, n_rows: int):
 
 
 def research_only(models) -> dict[str, str]:
+    """Research-only base extractors in ``models`` (``uni2-h_d4`` -> uni2-h)."""
     return {
-        part: RESEARCH_ONLY[part]
+        part.split("_")[0]: RESEARCH_ONLY[part.split("_")[0]]
         for m in models
         for part in m.split("+")
-        if part in RESEARCH_ONLY
+        if part.split("_")[0] in RESEARCH_ONLY
     }
 
 

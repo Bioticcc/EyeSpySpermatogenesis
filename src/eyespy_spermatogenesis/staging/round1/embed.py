@@ -3,7 +3,8 @@
 Usage::
 
     HF_HUB_CACHE=... python -m eyespy_spermatogenesis.staging.round1.embed \
-        DATA_DIR OUT_DIR --model h-optimus-0 [--batch 32]
+        DATA_DIR OUT_DIR --model h-optimus-0 [--batch 32] \
+        [--views s05_raw ...] [--tta d4]
 
 For every crop in ``DATA_DIR/labels.csv`` and every view
 (scale x masking) it tiles the crop into 224 px patches, runs the frozen model
@@ -15,6 +16,10 @@ Views: scale ``s1`` (native pixels), ``s05`` (2x downsampled), ``fit`` (whole
 crop resized to one patch); ``raw`` (crop as is) or ``masked`` (outside the
 outline set to white). Physical pixel size is unverified, so both native and
 downsampled patches are kept; evaluation decides.
+
+``--tta d4`` (optional, off by default) runs each patch in its 8 rotations and
+flips and stores the mean embedding; output goes to ``OUT_DIR/<model>_d4/`` so
+the plain embeddings are never overwritten. ``--views`` limits the views.
 """
 
 from __future__ import annotations
@@ -84,6 +89,21 @@ RESEARCH_ONLY = {
 }
 
 
+TTA = ("none", "d4")
+
+
+def d4(x):
+    """The 8 rotations/flips of a (n, c, h, w) batch, stacked: (8n, c, h, w)."""
+    import torch
+
+    rots = [torch.rot90(x, k, dims=(2, 3)) for k in range(4)]
+    return torch.cat(rots + [torch.flip(r, dims=(3,)) for r in rots])
+
+
+def out_name(model_name: str, tta: str = "none") -> str:
+    return model_name if tta == "none" else f"{model_name}_{tta}"
+
+
 def tile_starts(length: int, tile: int = TILE) -> list[int]:
     """Evenly spaced tile origins covering ``length`` (overlap if needed)."""
     if length <= tile:
@@ -121,8 +141,8 @@ def views(img: np.ndarray, mask: np.ndarray):
 
 
 class _Crops:
-    def __init__(self, data_dir: Path, rows):
-        self.d, self.rows = data_dir, rows
+    def __init__(self, data_dir: Path, rows, keep=None):
+        self.d, self.rows, self.keep = data_dir, rows, keep
 
     def __len__(self):
         return len(self.rows)
@@ -131,7 +151,8 @@ class _Crops:
         k = self.rows[i]["key"]
         img = np.asarray(Image.open(self.d / "crops" / f"{k}.png").convert("RGB"))
         mask = np.asarray(Image.open(self.d / "masks" / f"{k}.png")) > 0
-        return i, list(views(img, mask))
+        vs = views(img, mask)
+        return i, [v for v in vs if self.keep is None or v[0] in self.keep]
 
 
 def load_model(name: str):
@@ -151,13 +172,23 @@ def load_model(name: str):
     return model, mean_t, std_t
 
 
-def embed(data_dir: Path, out_dir: Path, model_name: str, batch: int = 32, workers=8):
+def embed(
+    data_dir: Path,
+    out_dir: Path,
+    model_name: str,
+    batch: int = 32,
+    workers=8,
+    keep_views=None,
+    tta: str = "none",
+):
     import torch
 
     rows = read_table(data_dir)
     model, mean, std = load_model(model_name)
+    if tta == "d4":
+        batch = max(1, batch // 8)  # each patch becomes 8 images
     loader = torch.utils.data.DataLoader(
-        _Crops(data_dir, rows),
+        _Crops(data_dir, rows, set(keep_views) if keep_views else None),
         batch_size=None,
         num_workers=workers,
         prefetch_factor=4,
@@ -171,7 +202,11 @@ def embed(data_dir: Path, out_dir: Path, model_name: str, batch: int = 32, worke
         x = torch.from_numpy(np.stack([p[3] for p in pending])).to("cuda")
         x = ((x.permute(0, 3, 1, 2).float() / 255 - mean) / std).half()
         with torch.inference_mode():
-            f = model(x).float().cpu().numpy().astype(np.float16)
+            if tta == "d4":
+                f = model(d4(x)).float().view(8, len(pending), -1).mean(0)
+            else:
+                f = model(x).float()
+            f = f.cpu().numpy().astype(np.float16)
         for (v, ci, fr, _), e in zip(pending, f):
             s = store.setdefault(v, {"emb": [], "crop": [], "frac": []})
             s["emb"].append(e)
@@ -189,7 +224,7 @@ def embed(data_dir: Path, out_dir: Path, model_name: str, batch: int = 32, worke
         if n % 200 == 0:
             print(f"{n}/{len(rows)} crops, {time.time() - t0:.0f} s", flush=True)
     flush()
-    od = out_dir / model_name
+    od = out_dir / out_name(model_name, tta)
     od.mkdir(parents=True, exist_ok=True)
     for v, s in store.items():
         np.savez(
@@ -209,6 +244,7 @@ def embed(data_dir: Path, out_dir: Path, model_name: str, batch: int = 32, worke
                 "seconds": round(time.time() - t0),
                 "torch": torch.__version__,
                 "research_only": RESEARCH_ONLY.get(model_name),
+                "tta": tta,
             },
             indent=2,
         )
@@ -223,8 +259,10 @@ def main(argv=None):
     p.add_argument("--model", choices=sorted(MODELS), required=True)
     p.add_argument("--batch", type=int, default=32)
     p.add_argument("--workers", type=int, default=8)
+    p.add_argument("--views", nargs="+", help="only these views (default all)")
+    p.add_argument("--tta", choices=TTA, default="none")
     a = p.parse_args(argv)
-    embed(a.data_dir, a.out_dir, a.model, a.batch, a.workers)
+    embed(a.data_dir, a.out_dir, a.model, a.batch, a.workers, a.views, a.tta)
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ jobs passed for the published scaffold; local checks cover only Python 3.11.
 ## Archive and publication
 
 Archival commit/tree, original-file counts and local-only inventory are in
-[GIT_MIGRATION.md](GIT_MIGRATION.md). The remote archive was verified at the exact
+[GIT_MIGRATION.md](history/GIT_MIGRATION.md). The remote archive was verified at the exact
 original SHA before changing main. Full fetch of original historical objects
 completed; `git fsck --full` reported no integrity errors (its unborn-main notice
 was expected before the scaffold commit). All **743 reachable legacy objects**
@@ -41,7 +41,7 @@ while source data-model modules remain tracked.
 **Remote publication is complete.** After owner-approved GitHub authorization,
 a normal fast-forward push published `45ddcfa1a06166e4f476e728525e27c0ac5de7e9`
 to main. Remote legacy remains at the exact original SHA. No history was rewritten
-and no default-branch change was needed. See [GIT_MIGRATION.md](GIT_MIGRATION.md).
+and no default-branch change was needed. See [GIT_MIGRATION.md](history/GIT_MIGRATION.md).
 
 [Scaffold checks run 41918532551](https://github.com/Bioticcc/EyeSpySpermatogenesis/actions/runs/41918532551)
 completed successfully for that published commit. The Python 3.11, 3.12 and 3.13
@@ -61,7 +61,7 @@ Windows/macOS/WSL deployment or disconnected installation was tested.
 The owner authorized Phase 1. The optional `io` extra installed successfully with
 tifffile 2025.6.11 and NumPy 2.2.6 on local Python 3.11.2. The metadata inspector
 and CLI are implemented; reader-specific region extraction remains pending actual
-files. See [PHASE1_IO_VALIDATION.md](PHASE1_IO_VALIDATION.md).
+files. See [PHASE1_IO_VALIDATION.md](history/PHASE1_IO_VALIDATION.md).
 
 - Full local suite: **17 tests passed**, with no skips. Cases include plain
   uint8/uint16 TIFF, tiled pyramidal OME/BigTIFF with an associated thumbnail,
@@ -170,7 +170,7 @@ acceptance and measured whole-process resource limits remain open.
 
 ## Failure mechanism investigation — 2026-11-06
 
-[SEPARATION_FAILURE_ANALYSIS.md](SEPARATION_FAILURE_ANALYSIS.md) records the
+[SEPARATION_FAILURE_ANALYSIS.md](history/SEPARATION_FAILURE_ANALYSIS.md) records the
 subsequent diagnostic audit. All 13 saved label arrays were reproduced exactly;
 source and production code hashes matched the trial. Intermediate masks on all
 13 images, controlled cleanup/threshold/seed-spacing ablations on three examples,

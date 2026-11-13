@@ -173,7 +173,7 @@ No fallback is implemented in this prototype.
 
 v0.1 thresholded tissue darkness. Tubules are packed edge to edge, so the whole
 section became one foreground object (see
-[SEPARATION_FAILURE_ANALYSIS.md](SEPARATION_FAILURE_ANALYSIS.md)). v0.2, now the
+[SEPARATION_FAILURE_ANALYSIS.md](history/SEPARATION_FAILURE_ANALYSIS.md)). v0.2, now the
 default `--method membrane`, segments the boundaries instead. Each tubule is
 wrapped in a PAS-positive basement membrane, which shows as a thin magenta line.
 

@@ -26,9 +26,9 @@ EyeSpy (H-optimus-0 + DINOv2-L features with our own classifier, decision 027);
 EyeSpy_v1 is the model in use. See
 [the staging strategy](STAGING_STRATEGY.md#eyespy-primary-strategy-2026-11-13).
 See [the prototype plan](OVERVIEW_PROTOTYPE.md) and
-[the Phase 1 guide](PHASE1_IO_VALIDATION.md).
+[the Phase 1 guide](history/PHASE1_IO_VALIDATION.md).
 The clean main is published on GitHub, with the original project preserved on
-legacy; see [GIT_MIGRATION.md](GIT_MIGRATION.md).
+legacy; see [GIT_MIGRATION.md](history/GIT_MIGRATION.md).
 
 ## Phases and exit evidence
 

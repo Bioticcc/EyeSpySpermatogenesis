@@ -6,7 +6,7 @@ published methods. **V** = capability verified in documentation/code;
 **U** = unresolved. The initial review was source-only. The 2026-11-06
 overview-first prototype adds restricted TIFF region reads and an optional
 SciPy/scikit-image comparator, tested only on synthetic images; no candidate has
-been validated on project images. See [the prototype](OVERVIEW_PROTOTYPE.md) and
+been validated on project images. See [the prototype](../OVERVIEW_PROTOTYPE.md) and
 [Phase 1](PHASE1_IO_VALIDATION.md). “Offline” below means a plausible local runtime
 after installation and artifact acquisition,
 not a tested disconnected deployment. Installation difficulty is an engineering

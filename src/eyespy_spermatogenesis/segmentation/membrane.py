@@ -1,7 +1,7 @@
 """Membrane-network tubule candidates (v0.5), not a validated PAS tubule detector.
 
 Tubules in a section are packed edge to edge, so foreground thresholding selects
-the whole section as one object (see docs/SEPARATION_FAILURE_ANALYSIS.md). This
+the whole section as one object (see docs/history/SEPARATION_FAILURE_ANALYSIS.md). This
 method segments the *boundaries* instead: each tubule is wrapped in a
 PAS-positive basement membrane, which appears as a thin magenta line. Regions
 enclosed by that line network become candidates.

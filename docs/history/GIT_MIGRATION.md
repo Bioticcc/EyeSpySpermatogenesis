@@ -113,7 +113,7 @@ weights or datasets were downloaded for Phase 0.
 ## Verification results
 
 The final migration result and exact validation evidence are recorded in
-[VALIDATION.md](VALIDATION.md). No additional archival tag is needed: `legacy`
+[VALIDATION.md](../VALIDATION.md). No additional archival tag is needed: `legacy`
 names the original complete tracked snapshot. Future agents must preserve that
 ref. Any future history rewrite or default-branch change requires explicit owner
 approval and a separate reviewed procedure.
@@ -129,4 +129,29 @@ Later documentation commits record this completed migration.
 Remote `legacy` remains `4af472c53beb3810828923ddd252f451374d2a01`. No force-push,
 remote deletion, tag rewrite or default-branch change was performed. No GitHub
 authorization or configuration steps remain for this migration. Hosted CI
-evidence is recorded in [VALIDATION.md](VALIDATION.md).
+evidence is recorded in [VALIDATION.md](../VALIDATION.md).
+
+## History cleanup (2026-11-13)
+
+The owner approved removing lab data from all history of `main` and `legacy`
+(the repository is public). `git filter-repo` (2.47.0) dropped every file under
+`data/raw/` and `data/labels/` and every `.pt` weight file, except:
+
+- `data/raw/Image_11.tif` and `data/raw/Multistage oct 14_63.tif` (examples)
+- their annotations in `data/labels/annotations/`
+- the legacy overlays in `outputs/seg_viz/` and `outputs/mask_debug/`, the
+  logo PNG and the README overlay figures
+
+The `main` file tree was unchanged. Reachable history went from about 1 GB to
+about 47 MB. Every commit SHA changed, so SHAs earlier in this record and in
+[VALIDATION.md](../VALIDATION.md) refer to the pre-cleanup history:
+
+| Commit | Before | After |
+|---|---|---|
+| Legacy head | `4af472c` | `33c1dc4` |
+| Scaffold reset | `38984ab` | `03ba2d0` |
+| First published main | `45ddcfa` | `166a8c2` |
+| Last commit before cleanup | `89b3a6d` | `f39f23b` |
+
+Both branches were force-pushed with owner approval. The full raw data stays
+local in `Inputs/` and is never committed.

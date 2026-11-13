@@ -1,13 +1,13 @@
 # Phase 1: image characterization and region-access validation
 
 **Status: first 13-file lab trial completed; validation remains open.** See the
-2026-11-06 real-image entry in [VALIDATION.md](VALIDATION.md). JPEG region checks
+2026-11-06 real-image entry in [VALIDATION.md](../VALIDATION.md). JPEG region checks
 passed on sampled areas; individual-tubule separation failed with the untuned
 baseline. Owner authorization on
 2026-11-04 covers characterization and reader/manual-region experiments. It did
 not select a segmentation method or authorize starting a stage classifier. On
 2026-11-06 the owner separately authorized an overview-first synthetic prototype
-before the test slice arrives; see [OVERVIEW_PROTOTYPE.md](OVERVIEW_PROTOTYPE.md).
+before the test slice arrives; see [OVERVIEW_PROTOTYPE.md](../OVERVIEW_PROTOTYPE.md).
 This changes implementation scope, not the requirement for real-image validation.
 
 ## Implemented now
@@ -27,7 +27,7 @@ This changes implementation scope, not the requirement for real-image validation
 **Not yet validated:** actual image metadata, calibration, optical detail,
 companion-file completeness, large-file memory usage, bounded region decoding,
 crop exports, reader comparisons or scientific performance. The common
-`AnalysisRegion` contract in [ARCHITECTURE.md](ARCHITECTURE.md) remains proposed.
+`AnalysisRegion` contract in [ARCHITECTURE.md](../ARCHITECTURE.md) remains proposed.
 
 ## Preparing the examples
 
@@ -42,7 +42,7 @@ a frame with several tubules if available. No tubule polygons or staging labels
 are required to test I/O. This is a file-access pilot, not the later biological
 evaluation dataset.
 
-Copy `examples/pilot_manifest.csv` to a local data/results folder. It is a blank
+Copy `docs/history/phase1_templates/pilot_manifest.csv` to a local data/results folder. It is a blank
 organizational template, not an existing dataset or a file read by the inspector.
 Use a unique owner-assigned `source_id` and actual file path. Add animal, section,
 slide, batch and acquisition identifiers only from real records; leave unknowns
@@ -51,7 +51,7 @@ blank. Never infer biological metadata from filenames. Confirmed project scope
 
 Prioritize the staining protocol/counterstain, acquisition convention, physical
 calibration and equipment. Remaining details can stay PENDING CONFIRMATION while
-we inspect headers; see [EXPERIMENTAL_SPECIFICATIONS.md](EXPERIMENTAL_SPECIFICATIONS.md).
+we inspect headers; see [EXPERIMENTAL_SPECIFICATIONS.md](../EXPERIMENTAL_SPECIFICATIONS.md).
 
 ## Running metadata inspection
 
@@ -126,7 +126,7 @@ After actual headers are reviewed, follow this sequence within Phase 1:
    channels, orientation and native-detail level. Distinguish thumbnails and
    associated images. Resolve multidimensional and multifile layouts before
    treating anything as an ordinary RGB frame.
-2. **Define manual rectangles.** Copy `examples/roi_requests.csv` into a local
+2. **Define manual rectangles.** Copy `docs/history/phase1_templates/roi_requests.csv` into a local
    results folder and record requested series, level, Z/T and channels explicitly.
    Bounds `[x0, y0, x1, y1)` are integer pixel-edge coordinates in that requested
    level; they are not yet verified full-resolution source coordinates. Include
@@ -155,7 +155,7 @@ After actual headers are reviewed, follow this sequence within Phase 1:
    agree the shared production contract and scientific comparison criteria.
 
 A crop/overview trial command now exists in
-[OVERVIEW_PROTOTYPE.md](OVERVIEW_PROTOTYPE.md). It deliberately supports a restricted
+[OVERVIEW_PROTOTYPE.md](../OVERVIEW_PROTOTYPE.md). It deliberately supports a restricted
 set of single-plane layouts and fails on unsupported inputs; the actual test file
 may require another adapter. If a useful pyramid is absent, derive an overview
 from native storage segments. Never upscale coarse pixels as native crop detail.

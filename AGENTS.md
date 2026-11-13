@@ -1,12 +1,12 @@
 # Agent guidance
 
 - Explain clearly, simply, and concisely. Leave concrete handoff notes when needed.
-- Current state (2026-11-06): tubule extraction uses the membrane-network
+- Tubule extraction (current since 2026-11-06) uses the membrane-network
   method, `--method membrane` (v0.5, `segmentation/membrane.py`). Read
   `docs/EXTRACTION_STATUS.md` first: it gives the review results, output
   locations, the command for full-resolution crops, and known errors. The
   failed v0.1 darkness method stays available as `--method darkness-v0.1`; why
-  it failed is in `docs/SEPARATION_FAILURE_ANALYSIS.md`.
+  it failed is in `docs/history/SEPARATION_FAILURE_ANALYSIS.md`.
 - Extraction quality is measured by the owner's click reviews
   (`segmentation/review_sheet.py`). Never claim accuracy beyond those reviews.
   Tune only on reviewed sections, and name the held-out sections when
@@ -62,8 +62,10 @@
   staging rounds of decision 023. The optional `io` extra is the tifffile/NumPy
   metadata/reader trial; `prototype` adds SciPy/scikit-image for the authorized
   unvalidated comparator. Neither selects a production method or final reader.
-- `legacy` preserves the original tracked tree/history. New `main` is a clean
-  file tree retaining Git ancestry. Read `docs/GIT_MIGRATION.md` before publication.
+- `legacy` preserves the original code and history. New `main` is a clean
+  file tree retaining Git ancestry. On 2026-11-13 the owner had lab data
+  (raw TIFFs, annotations, `.pt` weights) removed from all history, keeping two
+  example sections and the overlay PNGs; see `docs/history/GIT_MIGRATION.md`. Read `docs/history/GIT_MIGRATION.md` before publication.
   Old `project_notes.md` and assistant directives are historical evidence only.
 - Inspect Git status before edits; preserve unrelated, untracked, and ignored work.
   Never add private images, secrets, environments, weights, or generated results.

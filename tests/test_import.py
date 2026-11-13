@@ -1,4 +1,4 @@
-"""Check that the installed package exposes its planned module boundaries."""
+"""Check that the installed package exposes its module boundaries."""
 
 from importlib import import_module
 
@@ -9,8 +9,5 @@ def test_package_imports() -> None:
         ".io",
         ".segmentation",
         ".staging",
-        ".integrations",
-        ".evaluation",
-        ".models",
     ):
         assert import_module(f"eyespy_spermatogenesis{suffix}") is not None

@@ -4,7 +4,7 @@ Owner update (2026-11-06): D2 overview localization then native crop retrieval
 is the initial whole-section route, superseding the 2026-11-04 D1 choice. The
 owner authorized implementation before the test slice arrives. A restricted I/O
 and classical-candidate prototype now exists; see
-[OVERVIEW_PROTOTYPE.md](OVERVIEW_PROTOTYPE.md) for its concrete plan, dependencies,
+[OVERVIEW_PROTOTYPE.md](../OVERVIEW_PROTOTYPE.md) for its concrete plan, dependencies,
 commands, masks' provisional status and remaining validation. This is not a
 scientifically selected segmentation method or authorization for staging.
 
@@ -61,7 +61,7 @@ do not claim whole-slide coordinates for standalone frames.
 | S2 — interpretable morphology | Spatial features plus a compact statistical classifier provide useful staging or grouping. Needs expert labels, boundaries and reliable cell/lumen cues; candidate scikit-image/OpenCV plus a selected statistical package. | Feature table with units/missingness, classifier/taxonomy IDs and uncertainty. Same holdout; compare feature ablations and expert interpretability. | Inspectable radial/texture/orientation evidence; feature extraction may be difficult and exact stages inseparable. Select on measured performance/effort; never promise deterministic twelve-stage rules. |
 | S3 — hybrid | S1 and explicit features have complementary errors. Needs paired S1/S2 outputs and sufficient training/validation groups. | Combined probabilities, component provenance and abstention; held-out improvement at matched coverage, calibration and added cost. | Potential complementary evidence; complexity and overfitting. Attempt only after component baselines exist; discard if benefit is unconvincing. |
 
-See [STAGING_STRATEGY.md](STAGING_STRATEGY.md) for taxonomy and suitability gates.
+See [STAGING_STRATEGY.md](../STAGING_STRATEGY.md) for taxonomy and suitability gates.
 
 ## Selection procedure
 

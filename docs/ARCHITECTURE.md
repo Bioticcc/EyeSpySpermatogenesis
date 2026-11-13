@@ -32,18 +32,18 @@ adaptation remains future work; each frame is an independent source.
 
 ## Module boundaries
 
-| Module | Future responsibility |
+| Module | Responsibility |
 |---|---|
 | `io` | File discovery, metadata reports, reader selection, bounded region retrieval |
-| `models` | Versioned data contracts for sources, regions, instances and results |
 | `segmentation` | Candidate generation/separation, reconciliation and crop export |
 | `staging` | Eligibility, classifier/features, taxonomy, uncertainty and abstention |
-| `integrations` | Versioned adapters for external applications/models |
-| `evaluation` | Common inputs, grouped comparisons, quality metrics and provenance checks |
 
 Downstream modules use the shared contract. They must not branch on whether the
 source was an OME-TIFF or folder. Reader and application-specific conversions
-belong in adapters, with explicit records of any irreversible changes.
+belong in adapters, with explicit records of any irreversible changes. Shared
+data contracts, external-tool adapters and grouped evaluation get their own
+subpackages when real code needs them (the empty placeholders were removed on
+2026-11-13).
 
 ## Shared analysis input: proposed `AnalysisRegion`
 

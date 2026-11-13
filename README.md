@@ -67,7 +67,7 @@ Manual review of one crop per candidate (does the outline trace one tubule?):
 
 The legacy approach (branch `legacy`) trained a small U-Net on hand-drawn tubule
 polygons. It needed extensive annotation and never reached a completed
-quantitative benchmark; see [legacy findings](docs/LEGACY_FINDINGS.md).
+quantitative benchmark; see [legacy findings](docs/history/LEGACY_FINDINGS.md).
 
 v0.5 has not had a fresh review yet. Its changes were checked by replaying the
 earlier verdicts.
@@ -191,7 +191,7 @@ Currently only TIFF inputs are inspected; folder scans list skipped non-TIFF
 files. Use `--recursive` for subfolders and `--sha256` to stream-hash entire files
 (additional disk I/O). Existing reports are never overwritten; use a new output
 filename when rerunning. Metadata inspection alone does not prove memory-bounded
-cropping or image compatibility. The [Phase 1 guide](docs/PHASE1_IO_VALIDATION.md)
+cropping or image compatibility. The [Phase 1 guide](docs/history/PHASE1_IO_VALIDATION.md)
 describes the report, pilot manifest and upcoming crop checks.
 
 ### Running the overview-first prototype
@@ -234,9 +234,9 @@ eventual application packaging.
 
 - [Overview-first prototype](docs/OVERVIEW_PROTOTYPE.md)
 - [Project plan](docs/PROJECT_PLAN.md) and [architecture](docs/ARCHITECTURE.md)
-- [Software evaluation](docs/SOFTWARE_EVALUATION.md) and [prototypes](docs/PROTOTYPES.md)
-- [Evaluation plan](docs/EVALUATION_PLAN.md) and [staging strategy](docs/STAGING_STRATEGY.md)
-- [Legacy findings](docs/LEGACY_FINDINGS.md) and [decision log](docs/DECISIONS.md)
+- [Software evaluation](docs/history/SOFTWARE_EVALUATION.md) and [prototypes](docs/history/PROTOTYPES.md)
+- [Evaluation plan](docs/history/EVALUATION_PLAN.md) and [staging strategy](docs/STAGING_STRATEGY.md)
+- [Legacy findings](docs/history/LEGACY_FINDINGS.md) and [decision log](docs/DECISIONS.md)
 
 The original code/history remain on `legacy`; `main` contains the reboot.
 Related repositories: [SCP-SpermColorPixels](https://github.com/Bioticcc/SCP-SpermColorPixels)

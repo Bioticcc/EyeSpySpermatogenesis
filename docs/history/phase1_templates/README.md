@@ -1,7 +1,7 @@
 # Examples
 
 Phase 1 provides a metadata inspection command; see
-`docs/PHASE1_IO_VALIDATION.md`. Keep private images, manifests and reports outside
+`docs/history/PHASE1_IO_VALIDATION.md`. Keep private images, manifests and reports outside
 tracked source (`data/` and `outputs/` are Git-ignored).
 
 `pilot_manifest.csv` and `roi_requests.csv` contain headers only. Copy them to a

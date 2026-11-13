@@ -40,7 +40,7 @@ and `index.html` are the entry points.
 ## What fails and why
 
 1. **The current foreground definition is intensity-only.**
-   [Mask generation](../src/eyespy_spermatogenesis/segmentation/overview.py) averages
+   [Mask generation](../../src/eyespy_spermatogenesis/segmentation/overview.py) averages
    RGB channels, smooths and applies a whole-image Otsu threshold. A single darkness
    decision selects walls, cellular epithelium, interstitial staining and artifacts
    together. The result is useful as an approximate tissue mask, not a definition

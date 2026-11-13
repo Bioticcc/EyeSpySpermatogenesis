@@ -68,7 +68,7 @@ decision 027):
 ## S1: pretrained feasibility
 
 The evidence table and exact software details are maintained in
-[SOFTWARE_EVALUATION.md](SOFTWARE_EVALUATION.md). STSP is a first Python-oriented
+[SOFTWARE_EVALUATION.md](history/SOFTWARE_EVALUATION.md). STSP is a first Python-oriented
 candidate; SATINN v2 is an important independent bright-field comparator.
 
 STSP's study used selected, readily staged tubules rather than an unrestricted
@@ -126,7 +126,7 @@ Adjacent-stage scoring is secondary and requires an agreed biological convention
 including whether XII↔I wraps cyclically and how mixed transition tubules are
 handled. It must not hide poor exact-stage performance or be applied mechanically
 to grouped classes. Full evaluation design is in
-[EVALUATION_PLAN.md](EVALUATION_PLAN.md).
+[EVALUATION_PLAN.md](history/EVALUATION_PLAN.md).
 
 ## Paper annotation transfer (trial, 2026-11-06)
 

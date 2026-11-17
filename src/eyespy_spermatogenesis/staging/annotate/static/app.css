@@ -252,3 +252,6 @@ a.nav-item { text-decoration: none; }
 .main-content:has(> #guest-banner:not([hidden])) { display: flex; flex-direction: column; }
 .main-content:has(> #guest-banner:not([hidden])) > .annotate { height: auto; flex: 1 1 0; min-height: 0; }
 .main-content:has(> #guest-banner:not([hidden])) > section { flex-shrink: 0; }
+/* Progress figures: solid white cards like the panels (the light green
+   house card looked faded against the page's corner glow) */
+#metrics .metric-card { background: var(--paper); border: 1px solid var(--line); box-shadow: var(--shadow); }

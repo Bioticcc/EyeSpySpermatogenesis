@@ -1127,11 +1127,17 @@ function smLabel(tid) {
 }
 async function openSectionMap(sourceName, folder) {
   const section = sourceName.replace(/\.tiff?$/i, "");
-  Object.assign(SM, { section, sourceName, folder });
+  // Clear the previous section at once, so it never shows while this one loads.
+  const req = (SM.req || 0) + 1;
+  Object.assign(SM, { section, sourceName, folder, map: null, ov: null, req });
+  const cv = $("sm-canvas");
+  cv.width = 0; cv.height = 0;
   $("sm-title").textContent = section;
   $("sm-summary").textContent = "Loading…";
+  $("sm-legend").style.visibility = "hidden";
   $("sm").hidden = false;
   const [map, ov] = await Promise.all([hitMap(section), overviewPixels(section)]);
+  if (SM.req !== req) return; // another section was opened meanwhile
   if (map.w !== ov.w || map.h !== ov.h) throw new Error("overview and click map sizes differ");
   SM.map = map; SM.ov = ov;
   drawSectionMap();
@@ -1490,6 +1496,9 @@ function renderHelp() {
 
 // ---------- boot ----------
 async function boot() {
+  // Start works only once the tubule list is in (a few MB over the internet):
+  // say so rather than ignore clicks.
+  for (const b of [$("start"), $("start-guest")]) { b.disabled = true; b.dataset.text = b.textContent; b.textContent = "Loading…"; }
   S.cfg = await api("/api/config");
   $("version").textContent = "v" + S.cfg.version;
   $("backup-state").textContent = `Backups every ${S.cfg.backup_minutes} min`;
@@ -1497,6 +1506,7 @@ async function boot() {
   S.byId = new Map(S.tubules.map((t) => [t.tubule_id, t]));
   $("start").addEventListener("click", login);
   $("start-guest").addEventListener("click", loginGuest);
+  for (const b of [$("start"), $("start-guest")]) { b.disabled = false; b.textContent = b.dataset.text; }
   $("guest-save-ok").addEventListener("click", saveGuestLabels);
   $("guest-save-discard").addEventListener("click", discardGuest);
   $("guest-save-cancel").addEventListener("click", () => { $("guest-save").hidden = true; });

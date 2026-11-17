@@ -754,12 +754,18 @@ function renderProgress() {
   for (const [folder, r] of bySrc) {
     const cells = st ? [r.name, r.n, r.any, r.two, r.paper, r.check, r.mine] : [r.name, r.n, r.any, r.two, r.mine];
     const tr = el("tr", st ? { class: "clickable", title: "Open the section map" } : {}, ...cells.map((c) => el("td", { text: String(c) })));
-    if (st) tr.addEventListener("click", () => openSectionMap(r.name, folder).catch((e) => toast("Section map: " + e.message, true)));
+    if (st) {
+      tr.addEventListener("click", () => openSectionMap(r.name, folder).catch((e) => toast("Section map: " + e.message, true)));
+      let dwell;
+      tr.addEventListener("mouseenter", () => { dwell = setTimeout(() => prepareSection(r.name), 200); });
+      tr.addEventListener("mouseleave", () => clearTimeout(dwell));
+    }
     tb.append(tr);
   }
 
   const bars = $("stage-bars");
   bars.innerHTML = "";
+  if (st) setTimeout(prefetchSections, 1500); // after the page itself has loaded
   $("stage-panel").querySelector("h2").textContent = st ? "Labels per stage" : "Labels per verdict";
   const counts = new Map(choices().map((c) => [c[0], { web: 0, paper: 0 }]));
   for (const t of pool) for (const l of labelsOf(t.tubule_id)) if (l.value && counts.has(l.value)) counts.get(l.value)[l.origin === "paper" ? "paper" : "web"]++;
@@ -1100,6 +1106,31 @@ function stageRGB(k) {
 const CANT_RGB = [150, 150, 150], FLAG_RGB = [70, 70, 70];
 const SM = { section: null, sourceName: null, map: null, ov: null, overlay: true };
 const OVS = new Map();
+// Decoded pictures are large (about 12 MB each): keep only the latest few.
+function keepRecent(cache, n = 6) {
+  while (cache.size > n) cache.delete(cache.keys().next().value);
+}
+
+// Section maps open fast: after sign-in every section's pictures are fetched
+// once in the background (the browser keeps them a day), and resting the
+// mouse on a row in "By section" prepares that section.
+let sectionsFetched = false;
+async function prefetchSections() {
+  if (sectionsFetched) return;
+  sectionsFetched = true;
+  const names = [...new Set(S.tubules.map((t) => t.source_name.replace(/\.tiff?$/i, "").replace(/^#/, "")))];
+  for (const n of names) {
+    for (const u of [`/ws/review/sections/${encodeURIComponent(n)}.jpg`, `/ws/review/maps/${encodeURIComponent(n)}.png`]) {
+      try { const r = await fetch(u); if (r.ok) await r.arrayBuffer(); } catch { /* offline: loaded on open instead */ }
+    }
+  }
+}
+function prepareSection(sourceName) {
+  const section = sourceName.replace(/\.tiff?$/i, "");
+  hitMap(section).catch(() => {});
+  overviewPixels(section).catch(() => {});
+}
+
 function overviewPixels(section) {
   if (!OVS.has(section)) {
     OVS.set(section, (async () => {
@@ -1113,6 +1144,7 @@ function overviewPixels(section) {
       return { w: bmp.width, h: bmp.height, d: g.getImageData(0, 0, bmp.width, bmp.height).data };
     })());
     OVS.get(section).catch(() => OVS.delete(section));
+    keepRecent(OVS);
   }
   return OVS.get(section);
 }
@@ -1289,6 +1321,7 @@ function hitMap(section) {
       return { w: bmp.width, h: bmp.height, d: g.getImageData(0, 0, bmp.width, bmp.height).data };
     })());
     MAPS.get(section).catch(() => MAPS.delete(section));
+    keepRecent(MAPS);
   }
   return MAPS.get(section);
 }

@@ -282,6 +282,14 @@ class Store:
             out.append(d)
         return out
 
+    def all_names(self) -> set[str]:
+        """Everyone who has a label or a session, paper annotators included."""
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT annotator FROM labels UNION SELECT annotator FROM sessions"
+            ).fetchall()
+        return {r[0] for r in rows}
+
     def annotators(self) -> list[str]:
         with self.lock:
             rows = self.db.execute(

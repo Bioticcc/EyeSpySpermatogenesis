@@ -32,7 +32,8 @@ throwaway copy of the database; pictures go to the Git-ignored `WORKSPACE/guide/
 ## For annotators
 
 1. Type your name and choose **Staging**, **Segmentation review** or **Model review**. There is
-   no password; the name only labels your work.
+   no password; the name only labels your work. To look around without saving
+   anything, click **Just look around (guest)** instead (see *Guest mode* below).
 2. Press a key and the page saves it and moves on:
 
    | Key | Stage | Key | Stage |
@@ -46,7 +47,8 @@ throwaway copy of the database; pictures go to the Git-ignored `WORKSPACE/guide/
 
    → or Space skips, ← goes back, Delete clears your label, O hides the
    outline, the mouse wheel zooms.
-3. Labels from other people are shown beside the image. Everyone can stage
+3. Labels from other people are shown beside the image, **without names**
+   ("Another annotator"; decision 030). Everyone can stage
    every tubule; disagreement is data, not an error.
 4. **Log out** when you finish. That saves a CSV of all labels.
 
@@ -54,12 +56,33 @@ throwaway copy of the database; pictures go to the Git-ignored `WORKSPACE/guide/
 then the rest. Staging shows accepted (unflagged) crops only; segmentation
 review shows every candidate.
 
+**Guest mode** (owner, 2026-11-17). For people who only want to look. The page
+works as normal, but labels stay in the browser tab and are **never sent to the
+server** as they are made. A banner says so throughout. On **Log out** the guest
+is asked whether to save them: typing a name saves them under that name (a normal
+session is opened, the labels are written, and it logs out with the usual CSV);
+leaving it empty discards them. Closing or reloading the tab, or a page update,
+discards them too. Correcting paper readings (F / T) needs a named login.
+"Guest" is reserved and cannot be used as an annotator name.
+
+**Anonymous labels** (decision 030, 2026-11-17). The page never shows who gave
+which label. The only per-person figures are on **Progress**: *Labels per stage*,
+coloured per person (Yeongseok's paper stages dark green, on-screen stages light
+green, everyone else a muted colour of their own), and *Labels per person*, a bar
+of each person's total. Other labels appear as "Another annotator" (or "paper"),
+model-review scores are pooled over all reviewers, and there is no CSV download
+on the page. The server enforces this: `/api/labels` carries no names, only
+whether a label is the caller's own; review files are served with names removed.
+Names stay in `labels.sqlite`, its backups and the logout exports, which only the
+owner sees (`scripts/sync.sh pull`).
+
 **Section map (staging).** On **Progress**, click a section in "By section".
 The whole section opens, each tubule coloured by the stage it has so far (your
 label first, then the newest on-screen label, then paper; or only yours),
 with its numeral; uncoloured tubules have no stage yet, dark grey ones are
 flagged crops that are not staged. It shows at a glance how complete a section
-is. Click a tubule to open it in Annotate and label it; labelling then carries
+is. Untick **Overlay** (or press O) to see the section as scanned, without
+outlines, colours or numerals. Click a tubule to open it in Annotate and label it; labelling then carries
 on through the list as normal (if the tubule is not in your current list, the
 list switches to "All accepted tubules").
 
@@ -203,7 +226,7 @@ Everything is in the workspace folder, e.g.
 |---|---|
 | `labels.sqlite` | Current labels (one per person per tubule) and an append-only `events` log of every change |
 | `backups/` | Database + CSV copies at start-up, every hour, and at shutdown |
-| `exports/` | A CSV per log-out and per "Export CSV" click |
+| `exports/` | A CSV per log-out (with names; never downloadable from the page) |
 | `images/` | Display JPEGs and outline PNGs (viewing only; not for analysis) |
 | `paper/` | Snippets of handwritten marks |
 | `review/<run>/` | Overview panels and statistics for each model-review run |

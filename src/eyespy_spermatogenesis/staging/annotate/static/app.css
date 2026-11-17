@@ -236,3 +236,19 @@ a.nav-item { text-decoration: none; }
   background: var(--paper); color: var(--ink); box-shadow: var(--shadow); }
 .update-card h2 { margin: 0 0 0.5rem; font-family: Georgia, serif; color: var(--green-800); }
 .update-card p { margin: 0; line-height: 1.5; }
+
+/* Guest mode: browse without saving (owner, 2026-11-17) */
+.guest-login { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.guest-login .meta { margin: 0.5rem 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.45; }
+.guest-banner { margin: 0 0 0.8rem; padding: 0.6rem 0.9rem; border-radius: var(--radius-control);
+  background: var(--amber-soft); border: 1px solid var(--amber); color: var(--ink); font-size: 0.88rem; line-height: 1.45; }
+.guest-save-box { max-width: 32rem; padding: 1.4rem 1.6rem; }
+.guest-save-box h2 { margin: 0 0 0.5rem; font-family: Georgia, serif; color: var(--green-800); }
+.guest-save-box p { line-height: 1.5; }
+.guest-save-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+/* labels per person (counts only; decision 030) */
+.person-row { grid-template-columns: minmax(8rem, 14rem) 1fr 60px; }
+/* with the guest banner showing, Annotate takes the remaining height instead of the full screen */
+.main-content:has(> #guest-banner:not([hidden])) { display: flex; flex-direction: column; }
+.main-content:has(> #guest-banner:not([hidden])) > .annotate { height: auto; flex: 1 1 0; min-height: 0; }
+.main-content:has(> #guest-banner:not([hidden])) > section { flex-shrink: 0; }

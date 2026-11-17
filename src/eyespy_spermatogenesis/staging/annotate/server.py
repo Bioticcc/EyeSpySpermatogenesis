@@ -22,6 +22,11 @@ when its code was replaced (the build id differs) so it can offer a reload.
 Before an update the server's apply step writes ``WORKSPACE/UPDATE_NOTICE.json``;
 pings then carry a countdown ("warning"), and at "closing" each page saves its
 queued labels and logs out. ``--end-sessions`` ends any session left open.
+
+Labels are anonymous on the page (decision 030): ``/api/labels`` never names who
+gave a label, only whether it is the caller's own (``mine``); the only per-person
+figures are counts (``/api/progress``). Names stay in the database, its backups
+and exports, which only the owner sees.
 """
 
 from __future__ import annotations
@@ -30,6 +35,7 @@ import argparse
 import hashlib
 import json
 import mimetypes
+import re
 import secrets
 import signal
 import threading
@@ -56,6 +62,37 @@ VERSION = "0.1"
 TOKEN_FILE = "token.txt"
 ONLINE_SECONDS = 90  # seen this recently = has the page open (pings every 20 s)
 NOTICE_FILE = "UPDATE_NOTICE.json"
+# Detail fields that name a person; never sent to the page (decision 030).
+NAMED_DETAIL = ("transcription_checked_by", "transcription_checked_at")
+NAMED_KEYS = {"annotator", "annotators", *NAMED_DETAIL}
+
+
+def strip_names(obj, names: re.Pattern | None = None):
+    """A copy of JSON data without any field that names a person; with
+    ``names``, those names inside text become "an annotator"."""
+    if isinstance(obj, dict):
+        return {k: strip_names(v, names) for k, v in obj.items() if k not in NAMED_KEYS}
+    if isinstance(obj, list):
+        return [strip_names(v, names) for v in obj]
+    if isinstance(obj, str) and names is not None:
+        return names.sub(lambda m: "an annotator" + (m.group(2) or ""), obj)
+    return obj
+
+
+def name_pattern(names) -> re.Pattern | None:
+    """Matches any of these names as a word, with an optional 's."""
+    names = sorted({n for n in names if n and len(n) >= 2}, key=len, reverse=True)
+    if not names:
+        return None
+    return re.compile(r"\b(" + "|".join(map(re.escape, names)) + r")('s)?\b")
+
+
+def when(stamp: str | None) -> float:
+    """Sort key for stored times, which mix UTC and local offsets."""
+    try:
+        return datetime.fromisoformat(stamp).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def build_id() -> str:
@@ -112,6 +149,66 @@ class App:
                 print(f"[backup] FAILED: {exc}", flush=True)
 
     # ---- helpers -------------------------------------------------------
+    def caller(self, session_id) -> str | None:
+        """Name of an open session, or None (guests, ended or missing)."""
+        try:
+            return self.session(session_id)["annotator"] if session_id else None
+        except (PermissionError, ValueError, TypeError):
+            return None
+
+    def anonymous_labels(self, mode: str | None, session_id) -> list[dict]:
+        """Labels for the page: newest first, no names, ``mine`` for the caller's."""
+        me = self.caller(session_id)
+        rows = sorted(
+            self.store.labels(mode), key=lambda r: when(r["updated_at"]), reverse=True
+        )
+        out = []
+        for r in rows:
+            detail = strip_names(r["detail"])
+            if r["detail"].get("transcription_checked_by"):
+                detail["transcription_checked"] = True
+            out.append(
+                {
+                    "tubule_id": r["tubule_id"],
+                    "mode": r["mode"],
+                    "origin": r["origin"],
+                    "value": r["value"],
+                    "detail": detail,
+                    "mine": r["origin"] == "web"
+                    and me is not None
+                    and r["annotator"] == me,
+                }
+            )
+        return out
+
+    def progress(self, mode: str, run: str | None = None) -> list[dict]:
+        """Per-person label counts, in total and per stage/verdict: the only
+        per-person figures the page shows (decision 030)."""
+        sql = (
+            "SELECT l.annotator, l.origin, l.value, count(*) FROM labels l "
+            "JOIN tubules t ON t.tubule_id = l.tubule_id "
+            "WHERE l.mode = ? AND l.value IS NOT NULL"
+        )
+        args: list = [mode]
+        if mode == "staging":
+            sql += " AND t.recommended = 1"
+        if mode == "model_review":
+            sql += (
+                " AND l.tubule_id IN "
+                "(SELECT tubule_id FROM model_predictions WHERE run = ?)"
+            )
+            args.append(run)
+        with self.store.lock:
+            rows = self.store.db.execute(sql + " GROUP BY 1, 2, 3", args).fetchall()
+        people: dict[tuple, dict] = {}
+        for who, origin, value, n in rows:
+            p = people.setdefault(
+                (who, origin), {"name": who, "origin": origin, "n": 0, "values": {}}
+            )
+            p["n"] += n
+            p["values"][value] = n
+        return sorted(people.values(), key=lambda p: -p["n"])
+
     def online(self) -> list[dict]:
         now = time.time()
         people = [
@@ -214,7 +311,15 @@ def make_handler(app: App):
                         p in ("..", "") or p.startswith(".") for p in rel.parts
                     ):
                         return self.error_json(404, "Not found")
-                    return self.file(app.workspace / rel)
+                    f = app.workspace / rel
+                    if rel.suffix == ".json" and f.is_file():
+                        # e.g. review/eyespy/index.json lists training sources by name
+                        data = strip_names(
+                            json.loads(f.read_text(encoding="utf-8")),
+                            name_pattern(app.store.all_names()),
+                        )
+                        return self.json(data)
+                    return self.file(f)
                 if path == "/api/token":
                     # Same-origin only (no CORS headers), like the token in /app.
                     return self.json({"token": app.token})
@@ -228,6 +333,10 @@ def make_handler(app: App):
                             pass
                     return self.json({"build": app.build, "update": app.notice()})
                 if path == "/api/online":
+                    # For scripts/sync.sh on the server only: requests through the
+                    # Cloudflare tunnel carry Cf-Connecting-Ip (decision 030).
+                    if self.headers.get("Cf-Connecting-Ip"):
+                        return self.error_json(404, "Not found")
                     return self.json(app.online())
                 if path == "/api/config":
                     return self.json(
@@ -264,23 +373,19 @@ def make_handler(app: App):
                         r["source_bounds"] = json.loads(r["source_bounds"])
                     return self.json(rows)
                 if path == "/api/labels":
-                    mode = parse_qs(url.query).get("mode", [None])[0]
-                    return self.json(app.store.labels(mode))
+                    q = parse_qs(url.query)
+                    mode = q.get("mode", [None])[0]
+                    sid = q.get("session", [""])[0]
+                    return self.json(app.anonymous_labels(mode, sid))
+                if path == "/api/progress":
+                    q = parse_qs(url.query)
+                    mode = q.get("mode", ["staging"])[0]
+                    if mode not in MODES:
+                        return self.error_json(400, "Unknown mode")
+                    return self.json(app.progress(mode, q.get("run", [None])[0]))
                 if path == "/api/predictions":
                     run = parse_qs(url.query).get("run", [None])[0]
                     return self.json(app.store.predictions(run))
-                if path == "/api/export.csv":
-                    who = parse_qs(url.query).get("who", ["manual"])[0]
-                    out = app.export(who, "manual")
-                    return self.send(
-                        200,
-                        out.read_bytes(),
-                        "text/csv; charset=utf-8",
-                        {
-                            "Content-Disposition": f'attachment; filename="{out.name}"',
-                            "X-Saved-Copy": str(out),
-                        },
-                    )
                 return self.error_json(404, "Not found")
             except Exception as exc:
                 return self.error_json(500, f"{type(exc).__name__}: {exc}")
@@ -297,6 +402,9 @@ def make_handler(app: App):
                 path = urlparse(self.path).path
                 if path == "/api/login":
                     name = clean_name(body.get("name", ""))
+                    if name.casefold() == "guest":
+                        # reserved for guest mode, whose labels are never saved
+                        return self.error_json(400, "Please use your own name")
                     mode = body.get("mode")
                     if mode not in MODES:
                         return self.error_json(400, "Choose a mode")

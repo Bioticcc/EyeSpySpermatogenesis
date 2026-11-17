@@ -37,6 +37,9 @@
   Page code goes out with `scripts/sync.sh deploy`, which only **queues** it
   for 22:00 Pacific (decision 029); `deploy --now [--force]` is the owner's
   call, never yours.
+- **Labels are anonymous on the page** (decision 030). Never send annotator names
+  or label times to the browser with labels, never add a per-person view beyond
+  the counts on Progress, and keep names out of anything served under `/ws/`.
 - Labels live on the annotation page (`staging/annotate/`, guide
   `docs/ANNOTATION.md`, decisions 020-024, 028). Workspace
   `outputs/staging-annotation-2026-11-06-01/`; never delete its

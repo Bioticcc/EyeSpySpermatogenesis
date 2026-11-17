@@ -36,6 +36,11 @@
   </aside>
 
   <main class="main-content">
+    <div id="guest-banner" class="guest-banner" role="status" hidden>
+      <strong>Guest mode: your labels are not saved.</strong> They are saved only if you choose to when you
+      log out. If you close or reload the tab, they are lost. To save as you go, log out and sign in with
+      your name.<span id="guest-count"></span>
+    </div>
     <!-- Login -->
     <section id="view-login" class="page-stack login">
       <header class="page-header"><div>
@@ -59,6 +64,11 @@
         </div>
         <button class="button primary large" id="start">Start</button>
         <div id="login-error" class="inline-error" hidden></div>
+        <div class="guest-login">
+          <button class="button secondary" id="start-guest">Just look around (guest)</button>
+          <p class="meta">No name needed, in the mode chosen above. <strong>Guest labels are not saved.</strong>
+            When you log out you can choose to save them under a name; if you close the tab, they are lost.</p>
+        </div>
       </div>
     </section>
 
@@ -142,13 +152,12 @@
         <p class="lede" id="progress-lede"></p>
       </div>
       <div class="page-header-actions">
-        <button class="button primary" id="export">Export CSV</button>
         <small id="export-note"></small>
       </div></header>
       <div class="metric-row" id="metrics"></div>
       <div class="panel"><h2>By section</h2><div class="table-wrap"><table id="by-source"></table></div></div>
       <div class="panel" id="stage-panel"><h2>Labels per stage</h2><div id="stage-bars"></div></div>
-      <div class="panel"><h2>By annotator</h2><div class="table-wrap"><table id="by-person"></table></div></div>
+      <div class="panel"><h2>Labels per person</h2><div id="by-person"></div></div>
     </section>
 
     <!-- Model review overview -->
@@ -195,7 +204,7 @@
       <div id="es-legend" class="ov-legend"></div>
       <div id="es-grid" class="ov-grid"></div>
       <div class="panel"><h2>Model history</h2><div class="table-wrap"><table id="es-history"></table></div>
-        <p class="meta">Scores are leave-one-section-out: every tubule is staged by a model that never saw its section. "Paper sections" scores every version on the same tubules (Yeongseok's paper sheets), so versions compare like for like. Δ: 95% interval of the difference in exact accuracy, in percentage points (section bootstrap). Smoothed models use the same classifier as their parent, with neighbour smoothing at prediction time (opt-in, never the default). The full history with every setting is <code>Model_Checkpoints/registry.json</code>.</p></div>
+        <p class="meta">Scores are leave-one-section-out: every tubule is staged by a model that never saw its section. "Paper sections" scores every version on the same tubules (the hand-staged paper sheets), so versions compare like for like. Δ: 95% interval of the difference in exact accuracy, in percentage points (section bootstrap). Smoothed models use the same classifier as their parent, with neighbour smoothing at prediction time (opt-in, never the default). The full history with every setting is <code>Model_Checkpoints/registry.json</code>.</p></div>
       <div class="panel"><h2>Per-stage recall, all scored tubules</h2><div class="table-wrap"><table id="es-recall"></table></div></div>
       <div class="panel"><h2>Settings</h2><div class="table-wrap"><table id="es-settings"></table></div></div>
       </div>
@@ -224,6 +233,7 @@
       <button class="button secondary small" id="sm-close">Close (Esc)</button>
     </header>
     <div class="toolbar tg-toolbar">
+      <label title="Show the tubule outlines and stages (key O)"><input type="checkbox" id="sm-overlay" checked> Overlay</label>
       <label>Show <select id="sm-who">
         <option value="all" title="Yours first, then the newest on-screen label, then paper">Everyone's labels</option>
         <option value="mine">Only my labels</option>
@@ -295,6 +305,22 @@
 </div>
 
 <div id="toast" class="toast" hidden></div>
+<div id="guest-save" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="guest-save-title">
+  <div class="modal-box guest-save-box">
+    <h2 id="guest-save-title">Save your guest labels?</h2>
+    <p>You labelled <strong id="guest-save-count">0</strong> tubule(s) as a guest. They are not saved yet.
+      To keep them, type the name to save them under. Leave it empty to discard them.</p>
+    <label class="field-label" for="guest-name">Name</label>
+    <input id="guest-name" class="text-input" autocomplete="off" maxlength="60">
+    <div id="guest-names" class="chips"></div>
+    <div id="guest-save-error" class="inline-error" hidden></div>
+    <div class="guest-save-actions">
+      <button class="button primary" id="guest-save-ok">Save and log out</button>
+      <button class="button secondary" id="guest-save-discard">Discard and log out</button>
+      <button class="button secondary" id="guest-save-cancel">Keep browsing</button>
+    </div>
+  </div>
+</div>
 <div id="update-bar" class="update-bar" role="status" hidden></div>
 <div id="update-overlay" class="update-overlay" hidden>
   <div class="update-card" role="alertdialog" aria-labelledby="update-overlay-title">

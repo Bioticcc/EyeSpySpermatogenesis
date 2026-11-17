@@ -29,8 +29,16 @@
 - At the start of each staging session run
   `.venv/bin/python scripts/check_new_staging_inputs.py`. If it lists new
   Yeongseok TIFFs or sheets, **tell the owner** (they decide on a retrain).
-- Labels live on the local annotation page (`staging/annotate/`, guide
-  `docs/ANNOTATION.md`, decisions 020-024). Workspace
+- From 2026-11-16 the annotation page is **hosted** (decision 028,
+  `docs/HOSTING.md`): the server's `labels.sqlite` is the live database. Run
+  `scripts/sync.sh pull` before reading labels (training, exports), and run any
+  command that writes to the workspace between `scripts/sync.sh checkout` and
+  `checkin`. Never copy a local database to the server any other way.
+  Page code goes out with `scripts/sync.sh deploy`, which only **queues** it
+  for 22:00 Pacific (decision 029); `deploy --now [--force]` is the owner's
+  call, never yours.
+- Labels live on the annotation page (`staging/annotate/`, guide
+  `docs/ANNOTATION.md`, decisions 020-024, 028). Workspace
   `outputs/staging-annotation-2026-11-06-01/`; never delete its
   `labels.sqlite`, `backups/` or `exports/`. On-screen labels were reset on
   2026-11-09; it holds 2086 paper labels (8 sections) and, from 2026-11-12,

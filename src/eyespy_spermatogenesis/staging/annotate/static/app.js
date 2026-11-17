@@ -57,15 +57,32 @@ function setSaveState() {
   }
 }
 
-async function flushOutbox() {
-  while (S.outbox.length) {
+// One flush at a time: two loops would both send outbox[0] and the second
+// shift() would drop a label that was never sent.
+function flushOutbox() {
+  if (!S.flushing) S.flushing = flushLoop().finally(() => { S.flushing = null; });
+  return S.flushing;
+}
+
+async function flushLoop() {
+  while (S.outbox.length && S.session) {
     const job = S.outbox[0];
     try {
       await api(job.path, job.body);
       S.outbox.shift();
       S.lastSaved = new Date().toLocaleTimeString();
     } catch (e) {
-      if (e.status === 401) { S.outbox = []; toast("Your session ended. Please log in again.", true); showLogin(); break; }
+      // Session ended (an update logged everyone out): keep the labels; they
+      // are sent again once the same person logs back in (startSession).
+      if (e.status === 401) {
+        const who = S.session.name;
+        if (!S.updating) toast(`Your session ended. Log in again as ${who}: ${S.outbox.length} label(s) are kept and saved then.`, true, 12000);
+        showLogin();
+        break;
+      }
+      // Stale token (the page was restarted): fetch the current one and retry.
+      // Never drop the label; if that fails it stays queued and is retried.
+      if (e.status === 403) { if (await refreshToken()) continue; break; }
       if (e.status && e.status >= 400 && e.status < 500) { S.outbox.shift(); toast("Not saved: " + e.message, true); continue; }
       break; // network/server problem: keep and retry later
     }
@@ -73,9 +90,20 @@ async function flushOutbox() {
   setSaveState();
 }
 setInterval(flushOutbox, 5000);
+// Queued labels live only in this tab: warn before it is closed or reloaded.
+window.addEventListener("beforeunload", (ev) => { if (S.outbox.length) { ev.preventDefault(); ev.returnValue = ""; } });
+
+async function refreshToken() {
+  try {
+    const { token } = await api("/api/token");
+    if (!token || token === window.TOKEN) return false;
+    window.TOKEN = token;
+    return true;
+  } catch { return false; }
+}
 
 function send(path, body) {
-  S.outbox.push({ path, body });
+  S.outbox.push({ path, body, who: S.session.name });
   setSaveState();
   flushOutbox();
 }
@@ -95,6 +123,87 @@ async function loadLabels() {
   for (const tid of pending) next.set(tid, S.labels.get(tid) || []);
   S.labels = next;
 }
+// Presence, new code and coming updates (decision 028). Pings tell the server
+// who has the page open; a different build means new code is live. Before an
+// update the server sends a countdown ("warning"), then "closing": this page
+// then saves its queued labels, logs out and reloads once the update is in.
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+async function ping() {
+  let next = 20000;
+  try {
+    const q = S.session ? "?session=" + encodeURIComponent(S.session.id) : "";
+    const { build, update } = await api("/api/ping" + q);
+    const changed = build && window.BUILD && build !== window.BUILD;
+    if (update) next = 5000;
+    if (S.updating) {
+      // Notice gone = the apply step finished (new code, or old code again
+      // if the update failed); either way this tab was logged out.
+      if (!update) return updateDone();
+      next = 5000;
+    } else if (update && (update.phase === "closing" || update.seconds_left <= 0)) {
+      closeForUpdate();
+    } else if (update) {
+      showUpdateWarning(update.seconds_left);
+    } else {
+      $("update-bar").hidden = true;
+      if (changed) $("update-note").hidden = false;
+    }
+  } catch { if (S.updating) next = 5000; /* offline: the save indicator says so */ }
+  setTimeout(ping, next);
+}
+setTimeout(ping, 20000);
+
+function showUpdateWarning(seconds) {
+  const m = Math.floor(seconds / 60), sec = seconds % 60;
+  const left = m ? `${m} min${sec >= 30 ? " 30 s" : ""}` : `${Math.max(sec, 5)} s`;
+  const at = new Date(Date.now() + seconds * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  $("update-bar").textContent = `The page is being updated at ${at} (in about ${left}). You will be logged out then. Your labels are saved as you go; log back in after a few minutes.`;
+  $("update-bar").hidden = false;
+}
+
+function updateOverlay(title, text) {
+  $("update-overlay-title").textContent = title;
+  $("update-overlay-text").textContent = text;
+  $("update-overlay").hidden = false;
+}
+
+async function closeForUpdate() {
+  if (S.updating) return;
+  S.updating = true;
+  $("update-bar").hidden = true;
+  updateOverlay("Updating the page", "Saving your labels and logging you out…");
+  for (let i = 0; i < 8 && S.outbox.length && S.session; i++) {
+    await flushOutbox();
+    if (S.outbox.length) await sleep(4000);
+  }
+  if (S.session && !S.outbox.length) {
+    try { await api("/api/logout", { session_id: S.session.id }); } catch { /* the server ends it */ }
+    S.session = null; store.del("session");
+  }
+  if (S.outbox.length) {
+    updateOverlay("Updating the page", `${S.outbox.length} label(s) could not be saved yet. Keep this tab open: when the update is done you will be asked to log in again, and they are saved then.`);
+  } else {
+    updateOverlay("Updating the page", "All your labels are saved and you are logged out. This page reloads by itself when the update is done, usually within a few minutes.");
+  }
+}
+
+function updateDone() {
+  if (!S.outbox.length) { store.set("updated", true); location.reload(); return; }
+  // Labels still queued: a reload would lose them. Log in again to save them.
+  S.updating = false;
+  $("update-overlay").hidden = true;
+  showLogin();
+  toast(`The page was updated. Log in again as ${S.outbox[0].who} to save ${S.outbox.length} label(s).`, true, 15000);
+  setTimeout(ping, 5000);
+}
+
+// While the page closes for an update nothing new may be labelled.
+window.addEventListener("keydown", (e) => { if (S.updating) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+$("update-reload").addEventListener("click", () => {
+  if (S.outbox.length) { toast(`Waiting for ${S.outbox.length} label(s) to save first.`, true); flushOutbox(); return; }
+  location.reload();
+});
+
 setInterval(async () => {
   try { await loadLabels(); if (!$("view-annotate").hidden) { renderSide(); if (seg()) repaintSeg(); } } catch { /* retry later */ }
 }, 20000);
@@ -436,6 +545,17 @@ function showLogin() {
 
 async function startSession(sess) {
   S.session = sess; store.set("session", sess);
+  if (S.outbox.length) {
+    // Labels kept from an ended session (an update): send them under the new
+    // session if it is the same person; another name must not take them over.
+    const mine = S.outbox.filter((j) => j.who === sess.name);
+    const lost = S.outbox.length - mine.length;
+    for (const j of mine) j.body.session_id = sess.id;
+    S.outbox = mine;
+    if (lost) toast(`${lost} unsaved label(s) by someone else were dropped.`, true, 12000);
+    flushOutbox();
+  }
+  api("/api/ping?session=" + encodeURIComponent(sess.id)).catch(() => {}); // online at once
   $("nav").hidden = false; $("who").hidden = false;
   $("who").innerHTML = "";
   $("who").append(el("span", { text: sess.name }), el("small", { text: staging() ? "Staging mode" : review() ? "Model review" : "Segmentation review" }));
@@ -482,7 +602,7 @@ async function logout() {
   if (S.outbox.length && !confirm("Some labels are not saved yet. Log out anyway?")) return;
   try {
     const r = await api("/api/logout", { session_id: S.session.id });
-    toast(`Logged out. ${r.labels_this_session} label(s) this session. CSV saved: ${r.export}`, false, 9000);
+    toast(`Logged out. ${r.labels_this_session} label(s) this session. Everything is saved.`, false, 9000);
   } catch (e) { toast("Logout export failed: " + e.message, true, 9000); }
   S.cfg = await api("/api/config");
   $("name").value = "";
@@ -1298,6 +1418,7 @@ async function boot() {
     toast("CSV downloaded. A copy is also saved in the workspace exports folder.");
   });
   for (const b of document.querySelectorAll(".nav-item[data-view]")) b.addEventListener("click", () => setView(b.dataset.view));
+  if (store.get("updated")) { store.del("updated"); toast("The page was updated. Please log in again.", false, 12000); }
   // Resume an open session after a reload (sessionStorage) or from #session=ID.
   const hashId = (location.hash.match(/session=(\d+)/) || [])[1];
   const savedId = hashId || (store.get("session") || {}).id;

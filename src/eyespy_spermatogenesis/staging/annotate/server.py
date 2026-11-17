@@ -1,25 +1,39 @@
-"""Serve the annotation page on this workstation only.
+"""Serve the annotation page.
 
 Usage::
 
     python -m eyespy_spermatogenesis.staging.annotate.server WORKSPACE [--port 8765]
 
-Binds to 127.0.0.1, so only this computer can open the page (decision 021).
+Binds to 127.0.0.1. On the workstation only this computer can open it; on the
+hosted server (decision 028) Cloudflare Tunnel reaches it from the same
+machine, behind Cloudflare Access. ``/`` is the illustrated guide (pictures
+from ``WORKSPACE/guide/``), ``/app`` the annotation page.
 Every label is committed to ``WORKSPACE/labels.sqlite`` as it is made. The
 database and a CSV snapshot are copied to ``WORKSPACE/backups/`` at start-up,
 every hour, and at shutdown. Logging out writes a CSV of all labels to
-``WORKSPACE/exports/``. State-changing requests need the per-launch token
-embedded in the page.
+``WORKSPACE/exports/``. State-changing requests need the token embedded in
+the page. It is kept in ``WORKSPACE/token.txt`` so it survives restarts (a
+deploy or checkin must not make open tabs' saves fail), and a tab whose token
+is stale fetches the current one from ``/api/token`` and retries.
+
+Open pages call ``/api/ping`` every 20 s. That tells ``scripts/sync.sh`` who has
+the page open (``/api/online``) before an immediate deploy, and tells the page
+when its code was replaced (the build id differs) so it can offer a reload.
+Before an update the server's apply step writes ``WORKSPACE/UPDATE_NOTICE.json``;
+pings then carry a countdown ("warning"), and at "closing" each page saves its
+queued labels and logs out. ``--end-sessions`` ends any session left open.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import mimetypes
 import secrets
 import signal
 import threading
+import time
 import webbrowser
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,6 +41,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from eyespy_spermatogenesis.staging.annotate.hosting import guard_local_server
 from eyespy_spermatogenesis.staging.annotate.store import (
     MODES,
     PAPER,
@@ -38,6 +53,33 @@ from eyespy_spermatogenesis.staging.annotate.store import (
 
 STATIC = resources.files("eyespy_spermatogenesis.staging.annotate") / "static"
 VERSION = "0.1"
+TOKEN_FILE = "token.txt"
+ONLINE_SECONDS = 90  # seen this recently = has the page open (pings every 20 s)
+NOTICE_FILE = "UPDATE_NOTICE.json"
+
+
+def build_id() -> str:
+    """Short hash of this package's files: changes whenever new code is deployed."""
+    root = Path(__file__).resolve().parent
+    h = hashlib.sha256()
+    for p in sorted(root.rglob("*")):
+        if p.is_file() and "__pycache__" not in p.parts:
+            h.update(str(p.relative_to(root)).encode())
+            h.update(p.read_bytes())
+    return h.hexdigest()[:12]
+
+
+def load_token(workspace: Path) -> str:
+    """The page token, made once per workspace and kept across restarts."""
+    path = workspace / TOKEN_FILE
+    if path.is_file():
+        token = path.read_text().strip()
+        if len(token) >= 32:
+            return token
+    token = secrets.token_urlsafe(24)
+    path.write_text(token + "\n")
+    path.chmod(0o600)
+    return token
 
 
 class App:
@@ -46,7 +88,9 @@ class App:
         if not (self.workspace / "labels.sqlite").exists():
             raise SystemExit(f"No labels.sqlite in {workspace}; run prepare first")
         self.store = Store(self.workspace / "labels.sqlite")
-        self.token = secrets.token_urlsafe(24)
+        self.token = load_token(self.workspace)
+        self.build = build_id()
+        self.seen: dict[int, tuple[str, str, float]] = {}  # session -> who, mode, when
         self.backup_seconds = backup_seconds
         self.stop = threading.Event()
         self.last_backup = None
@@ -68,6 +112,24 @@ class App:
                 print(f"[backup] FAILED: {exc}", flush=True)
 
     # ---- helpers -------------------------------------------------------
+    def online(self) -> list[dict]:
+        now = time.time()
+        people = [
+            {"annotator": who, "mode": mode, "seconds_ago": int(now - t)}
+            for who, mode, t in list(self.seen.values())
+            if now - t < ONLINE_SECONDS
+        ]
+        return sorted(people, key=lambda o: o["seconds_ago"])
+
+    def notice(self) -> dict | None:
+        """The coming update, if the server's apply step announced one."""
+        try:
+            n = json.loads((self.workspace / NOTICE_FILE).read_text())
+            left = max(0, int(n["deadline"] - time.time()))
+            return {"phase": n["phase"], "seconds_left": left}
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
     def session(self, session_id):
         with self.store.lock:
             row = self.store.db.execute(
@@ -127,9 +189,14 @@ def make_handler(app: App):
             url = urlparse(self.path)
             path = unquote(url.path)
             try:
-                if path in ("/", "/index.html"):
+                if path in ("/", "/guide"):
+                    # Landing page: the illustrated how-to (decision 028).
+                    html = (STATIC / "guide.html").read_text(encoding="utf-8")
+                    return self.send(200, html.encode(), "text/html; charset=utf-8")
+                if path in ("/app", "/index.html"):
                     html = (STATIC / "index.html").read_text(encoding="utf-8")
                     html = html.replace("__TOKEN__", app.token)
+                    html = html.replace("__BUILD__", app.build)
                     return self.send(200, html.encode(), "text/html; charset=utf-8")
                 if path.startswith("/static/"):
                     name = path.removeprefix("/static/")
@@ -142,12 +209,26 @@ def make_handler(app: App):
                     return self.send(200, res.read_bytes(), ctype)
                 if path.startswith("/ws/"):
                     rel = Path(path.removeprefix("/ws/"))
-                    served = (("images",), ("paper",), ("review",))
+                    served = (("images",), ("paper",), ("review",), ("guide",))
                     if rel.parts[:1] not in served or any(
                         p in ("..", "") or p.startswith(".") for p in rel.parts
                     ):
                         return self.error_json(404, "Not found")
                     return self.file(app.workspace / rel)
+                if path == "/api/token":
+                    # Same-origin only (no CORS headers), like the token in /app.
+                    return self.json({"token": app.token})
+                if path == "/api/ping":
+                    sid = parse_qs(url.query).get("session", [""])[0]
+                    if sid.isdigit():
+                        try:
+                            s = app.session(sid)
+                            app.seen[s["id"]] = (s["annotator"], s["mode"], time.time())
+                        except PermissionError:
+                            pass
+                    return self.json({"build": app.build, "update": app.notice()})
+                if path == "/api/online":
+                    return self.json(app.online())
                 if path == "/api/config":
                     return self.json(
                         {
@@ -226,6 +307,7 @@ def make_handler(app: App):
                     count = app.store.session_count(s["id"])
                     out = app.export(s["annotator"], "logout")
                     app.store.end_session(s["id"], str(out))
+                    app.seen.pop(s["id"], None)
                     return self.json({"export": str(out), "labels_this_session": count})
                 if path == "/api/label":
                     s = app.session(body.get("session_id"))
@@ -286,12 +368,36 @@ def make_handler(app: App):
     return Handler
 
 
+def end_sessions(workspace: Path) -> int:
+    """End every open session (before an update), with one CSV export."""
+    store = Store(workspace / "labels.sqlite")
+    try:
+        with store.lock:
+            ids = [
+                row[0]
+                for row in store.db.execute(
+                    "SELECT id FROM sessions WHERE ended_at IS NULL"
+                )
+            ]
+        if ids:
+            stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+            out = store.write_csv(
+                workspace / "exports" / f"labels_{stamp}_before-update.csv"
+            )
+            for sid in ids:
+                store.end_session(sid, str(out))
+        return len(ids)
+    finally:
+        store.close()
+
+
 def serve(workspace: Path, port: int, open_browser: bool, backup_seconds=3600):
+    guard_local_server(workspace)
     app = App(workspace, backup_seconds)
     app.backup("startup")
     httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app))
     threading.Thread(target=app.backup_loop, daemon=True).start()
-    url = f"http://127.0.0.1:{port}/"
+    url = f"http://127.0.0.1:{port}/app"
     print(f"Annotation page: {url}  (Ctrl+C to stop)", flush=True)
 
     def shutdown(*_):
@@ -317,7 +423,16 @@ def main(argv=None):
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--no-browser", action="store_true")
     p.add_argument("--backup-minutes", type=int, default=60)
+    p.add_argument(
+        "--end-sessions",
+        action="store_true",
+        help="end every open session and exit (run before an update)",
+    )
     a = p.parse_args(argv)
+    if a.end_sessions:
+        n = end_sessions(a.workspace.resolve())
+        print(f"Ended {n} open session(s).", flush=True)
+        return
     serve(a.workspace, a.port, not a.no_browser, a.backup_minutes * 60)
 
 

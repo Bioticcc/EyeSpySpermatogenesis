@@ -4,6 +4,7 @@ import csv
 import io
 import json
 import threading
+import time
 import urllib.request
 from http.server import ThreadingHTTPServer
 
@@ -138,7 +139,7 @@ def call(base, path, body=None, token=None):
 
 def test_server_session_label_logout(server, ws):
     app, base = server
-    code, html = call(base, "/")
+    code, html = call(base, "/app")
     assert code == 200 and app.token.encode() in html
     assert call(base, "/api/login", {"name": "Ann", "mode": "staging"})[0] == 403
     code, body = call(base, "/api/login", {"name": "Ann", "mode": "staging"}, app.token)
@@ -171,6 +172,57 @@ def test_server_session_label_logout(server, ws):
         app.token,
     )
     assert code == 401
+
+
+def test_token_survives_restart_so_open_tabs_keep_saving(server, ws):
+    """A deploy or checkin restarts the page; an open tab's token must still work."""
+    app, base = server
+    code, sid = call(base, "/api/login", {"name": "Ann", "mode": "staging"}, app.token)
+    assert code == 200
+    sid = json.loads(sid)["session_id"]
+    again = App(ws, backup_seconds=3600)  # the restarted page
+    assert again.token == app.token
+    assert (ws / "token.txt").stat().st_mode & 0o777 == 0o600
+    again.store.close()
+    code, body = call(base, "/api/token")
+    assert code == 200 and json.loads(body)["token"] == app.token
+
+
+def test_ping_reports_build_notice_and_who_is_online(server, ws):
+    app, base = server
+    code, body = call(base, "/api/login", {"name": "Ann", "mode": "staging"}, app.token)
+    sid = json.loads(body)["session_id"]
+    code, html = call(base, "/app")
+    assert app.build.encode() in html  # the page knows which code it runs
+    ping = json.loads(call(base, f"/api/ping?session={sid}")[1])
+    assert ping == {"build": app.build, "update": None}
+    online = json.loads(call(base, "/api/online")[1])
+    assert [o["annotator"] for o in online] == ["Ann"]
+    (ws / "UPDATE_NOTICE.json").write_text(
+        json.dumps({"phase": "warning", "deadline": time.time() + 120})
+    )
+    update = json.loads(call(base, "/api/ping")[1])["update"]
+    assert update["phase"] == "warning" and 115 <= update["seconds_left"] <= 120
+    call(base, "/api/logout", {"session_id": sid}, app.token)
+    assert json.loads(call(base, "/api/online")[1]) == []  # logged out = gone
+
+
+def test_short_or_missing_token_file_is_replaced(ws):
+    (ws / "token.txt").write_text("short\n")
+    app = App(ws, backup_seconds=3600)
+    assert len(app.token) >= 32 and (ws / "token.txt").read_text().strip() == app.token
+    app.store.close()
+
+
+def test_landing_page_is_the_guide(server, ws):
+    app, base = server
+    code, html = call(base, "/")
+    assert code == 200 and b"How to stage tubules" in html
+    assert app.token.encode() not in html
+    assert b'href="/app"' in html
+    (ws / "guide").mkdir()
+    (ws / "guide" / "01-login.png").write_bytes(b"png")
+    assert call(base, "/ws/guide/01-login.png") == (200, b"png")
 
 
 def test_server_only_serves_workspace_images(server):

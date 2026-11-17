@@ -7,7 +7,7 @@
 <link rel="icon" href="/static/logo.svg">
 <link rel="stylesheet" href="/static/house.css">
 <link rel="stylesheet" href="/static/app.css">
-<script>window.TOKEN = "__TOKEN__";</script>
+<script>window.TOKEN = "__TOKEN__"; window.BUILD = "__BUILD__";</script>
 </head>
 <body>
 <div class="app-shell">
@@ -21,11 +21,15 @@
       <button class="nav-item" data-view="overview" id="nav-overview" hidden><span class="nav-glyph">▦</span>Overview</button>
       <button class="nav-item" data-view="progress"><span class="nav-glyph">▤</span>Progress</button>
       <button class="nav-item" data-view="help"><span class="nav-glyph">?</span>Keys &amp; help</button>
+      <a class="nav-item" href="/" target="_blank" rel="noopener"><span class="nav-glyph">❖</span>Guide</a>
       <button class="nav-item" id="logout"><span class="nav-glyph">⏻</span>Log out</button>
     </nav>
     <div class="sidebar-foot">
       <div id="who" class="who" hidden></div>
       <div id="save-state" class="save-state"></div>
+      <div id="update-note" class="update-note" hidden>This page has been updated.
+        <button id="update-reload" class="update-reload">Reload</button>
+        <span>when you reach a good point. Your labels are saved.</span></div>
       <p id="backup-state"></p>
       <span class="version-chip" id="version">v–</span>
     </div>
@@ -38,6 +42,7 @@
         <p class="eyebrow">Start a session</p>
         <h1>Who is annotating?</h1>
         <p class="lede">Type your name. Your labels are saved under it as you go. Log out when you finish so the next person can start.</p>
+        <p class="lede">New here? <a href="/" target="_blank" rel="noopener">Read the illustrated guide</a> first.</p>
       </div></header>
       <div class="panel login-panel">
         <label class="field-label" for="name">Your name</label>
@@ -290,6 +295,13 @@
 </div>
 
 <div id="toast" class="toast" hidden></div>
+<div id="update-bar" class="update-bar" role="status" hidden></div>
+<div id="update-overlay" class="update-overlay" hidden>
+  <div class="update-card" role="alertdialog" aria-labelledby="update-overlay-title">
+    <h2 id="update-overlay-title">Updating the page</h2>
+    <p id="update-overlay-text"></p>
+  </div>
+</div>
 <script src="/static/app.js"></script>
 </body>
 </html>

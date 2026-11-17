@@ -50,6 +50,11 @@
         <p class="lede">New here? <a href="/" target="_blank" rel="noopener">Read the illustrated guide</a> first.</p>
       </div></header>
       <div class="panel login-panel">
+        <div class="guest-login">
+          <button class="button secondary" id="start-guest">Just look around (guest)</button>
+          <p class="meta">No name needed; uses the mode chosen below. <strong>Guest labels are not saved.</strong>
+            When you log out you can choose to save them under a name; if you close the tab, they are lost.</p>
+        </div>
         <label class="field-label" for="name">Your name</label>
         <input id="name" class="text-input" autocomplete="off" maxlength="60">
         <div id="recent-names" class="chips"></div>
@@ -64,11 +69,6 @@
         </div>
         <button class="button primary large" id="start">Start</button>
         <div id="login-error" class="inline-error" hidden></div>
-        <div class="guest-login">
-          <button class="button secondary" id="start-guest">Just look around (guest)</button>
-          <p class="meta">No name needed, in the mode chosen above. <strong>Guest labels are not saved.</strong>
-            When you log out you can choose to save them under a name; if you close the tab, they are lost.</p>
-        </div>
       </div>
     </section>
 
@@ -157,7 +157,7 @@
       <div class="metric-row" id="metrics"></div>
       <div class="panel"><h2>By section</h2><div class="table-wrap"><table id="by-source"></table></div></div>
       <div class="panel" id="stage-panel"><h2>Labels per stage</h2><div id="stage-bars"></div></div>
-      <div class="panel"><h2>Labels per person</h2><div id="by-person"></div></div>
+      <div class="panel"><h2>By annotator</h2><div class="table-wrap"><table id="by-person"></table></div></div>
     </section>
 
     <!-- Model review overview -->

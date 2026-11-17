@@ -58,7 +58,7 @@ from eyespy_spermatogenesis.staging.annotate.store import (
 )
 
 STATIC = resources.files("eyespy_spermatogenesis.staging.annotate") / "static"
-VERSION = "0.1"
+VERSION = "0.2"  # 0.2 (2026-11-17): hosted updates, guest mode, anonymous labels
 TOKEN_FILE = "token.txt"
 ONLINE_SECONDS = 90  # seen this recently = has the page open (pings every 20 s)
 NOTICE_FILE = "UPDATE_NOTICE.json"
@@ -319,7 +319,7 @@ def make_handler(app: App):
                             name_pattern(app.store.all_names()),
                         )
                         return self.json(data)
-                    return self.file(f)
+                    return self.file(f, cache=rel.parts[0] != "guide")
                 if path == "/api/token":
                     # Same-origin only (no CORS headers), like the token in /app.
                     return self.json({"token": app.token})

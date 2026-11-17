@@ -697,57 +697,20 @@ async function logout() {
 }
 
 // ---------- progress ----------
-// Stage bars coloured by annotator. Yeongseok keeps the house greens (paper
-// dark, on screen light); everyone else gets a muted colour of their own.
-const YEONGSEOK = "Yeongseok";
-const PERSON_COLOURS = ["#7d9cb8", "#c4a171", "#b08a9b", "#8f88b3", "#a7a477", "#79a9a6", "#b98a73", "#93a287", "#a3889f", "#6f8fa0"];
-function personKey(p) { return JSON.stringify([p.origin === "paper" ? "paper" : "web", p.name]); }
-function personColours(keys) {
-  const out = new Map(), used = new Set();
-  const hash = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
-  for (const k of [...keys].sort()) {
-    const [origin, who] = JSON.parse(k);
-    if (who === YEONGSEOK) { out.set(k, origin === "paper" ? "var(--green-800)" : "var(--green-500)"); continue; }
-    let i = hash(who + origin) % PERSON_COLOURS.length;
-    for (let n = 0; n < PERSON_COLOURS.length && used.has(i); n++) i = (i + 1) % PERSON_COLOURS.length;
-    used.add(i); out.set(k, PERSON_COLOURS[i]);
-  }
-  return out;
-}
-const personLabel = (k) => { const [origin, who] = JSON.parse(k); return who + (origin === "paper" ? " (paper)" : ""); };
-
-// The only per-person figures on the page (decision 030): how many labels each
-// person gave, in total and per stage. Who gave which label is never shown.
+// The only per-person figure on the page (decision 030): how many labels each
+// person gave. Who gave which label is never shown.
 async function loadPeople() {
   const run = review() && S.run ? "&run=" + encodeURIComponent(S.run) : "";
   return api("/api/progress?mode=" + S.session.mode + run);
 }
 
+// Labels per person: a plain count table (no times, no links; decision 030).
 function renderPeople(people) {
-  const colours = personColours(people.map(personKey));
-  const rank = (p) => (p.name === YEONGSEOK ? (p.origin === "paper" ? 0 : 1) : 2);
-  const order = [...people].sort((a, b) => rank(a) - rank(b) || b.n - a.n);
-  const label = (p) => personLabel(personKey(p));
-  const bars = $("stage-bars");
-  bars.innerHTML = "";
-  const values = choices().map((c) => c[0]);
-  const sum = (v) => order.reduce((a, p) => a + (p.values[v] || 0), 0);
-  const max = Math.max(1, ...values.map(sum));
-  bars.append(el("div", { class: "legend" }, ...order.flatMap((p) => [el("i", { style: `background:${colours.get(personKey(p))}` }), label(p)])));
-  for (const v of values) {
-    const track = el("div", { class: "bar-track" }, ...order.filter((p) => p.values[v]).map((p) =>
-      el("div", { class: "bar", style: `width:${(100 * p.values[v]) / max}%;background:${colours.get(personKey(p))}`, title: `${label(p)}: ${p.values[v]}` })));
-    bars.append(el("div", { class: "bar-row" }, el("span", { text: nameOf(v).replace("Can't stage / bad crop", "Can't stage") }), track, el("span", { text: String(sum(v)) })));
-  }
-  const box = $("by-person");
-  box.innerHTML = "";
-  const top = Math.max(1, ...order.map((p) => p.n));
-  if (!order.length) box.append(el("p", { class: "none", text: "No labels yet." }));
-  for (const p of [...order].sort((a, b) => b.n - a.n)) {
-    box.append(el("div", { class: "bar-row person-row" }, el("span", { text: label(p) }),
-      el("div", { class: "bar-track" }, el("div", { class: "bar", style: `width:${(100 * p.n) / top}%;background:${colours.get(personKey(p))}` })),
-      el("span", { text: String(p.n) })));
-  }
+  const tp = $("by-person");
+  tp.innerHTML = "";
+  tp.append(el("tr", {}, el("th", { text: review() ? "Reviewer" : "Annotator" }), el("th", { text: review() ? "Answers" : "Labels" })));
+  if (!people.length) tp.append(el("tr", {}, el("td", { colspan: "2", text: "No labels yet." })));
+  for (const p of people) tp.append(el("tr", {}, el("td", { text: p.name + (p.origin === "paper" ? " (paper)" : "") }), el("td", { text: String(p.n) })));
 }
 
 function renderProgress() {
@@ -795,7 +758,19 @@ function renderProgress() {
     tb.append(tr);
   }
 
+  const bars = $("stage-bars");
+  bars.innerHTML = "";
   $("stage-panel").querySelector("h2").textContent = st ? "Labels per stage" : "Labels per verdict";
+  const counts = new Map(choices().map((c) => [c[0], { web: 0, paper: 0 }]));
+  for (const t of pool) for (const l of labelsOf(t.tubule_id)) if (l.value && counts.has(l.value)) counts.get(l.value)[l.origin === "paper" ? "paper" : "web"]++;
+  const max = Math.max(1, ...[...counts.values()].map((c) => c.web + c.paper));
+  bars.append(el("div", { class: "legend" }, el("i", { style: "background:var(--green-500)" }), "on screen", el("i", { style: "background:var(--blue)" }), "paper"));
+  for (const [v, c] of counts) {
+    const track = el("div", { class: "bar-track" },
+      el("div", { class: "bar", style: `width:${(100 * c.web) / max}%` }),
+      el("div", { class: "bar paper", style: `width:${(100 * c.paper) / max}%` }));
+    bars.append(el("div", { class: "bar-row" }, el("span", { text: nameOf(v).replace("Can't stage / bad crop", "Can't stage") }), track, el("span", { text: String(c.web + c.paper) })));
+  }
   $("export-note").textContent = S.cfg.last_backup ? `Last automatic backup: ${S.cfg.last_backup.replace("T", " ").slice(0, 16)}` : "";
 }
 
@@ -830,8 +805,7 @@ function renderReviewProgress() {
     for (const model of models) rowsFor(model, (t) => { const p = S.preds.get(t); return ["A", "B"].map((s) => p[s]).find((x) => x && x.model === model)?.value; });
     rowsFor("Paper stage", (t) => S.paperStage.get(t));
   } else tb.append(el("tr", {}, el("td", { colspan: "4", text: "No answers yet." })));
-  $("stage-panel").hidden = false;
-  $("stage-panel").querySelector("h2").textContent = "Answers per stage";
+  $("stage-panel").hidden = true;
   $("export-note").textContent = S.cfg.last_backup ? `Last automatic backup: ${S.cfg.last_backup.replace("T", " ").slice(0, 16)}` : "";
 }
 
@@ -1166,7 +1140,7 @@ async function openSectionMap(sourceName, folder) {
 function drawSectionMap() {
   const { w, h, d: md } = SM.map, od = SM.ov.d;
   const cv0 = $("sm-canvas");
-  $("sm-legend").hidden = !SM.overlay;
+  $("sm-legend").style.visibility = SM.overlay ? "" : "hidden"; // keeps its space: same picture size
   if (!SM.overlay) {
     // The section alone: the overview image in full colour, nothing drawn on it.
     cv0.width = w; cv0.height = h;

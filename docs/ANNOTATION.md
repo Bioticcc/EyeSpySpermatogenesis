@@ -66,10 +66,9 @@ discards them too. Correcting paper readings (F / T) needs a named login.
 "Guest" is reserved and cannot be used as an annotator name.
 
 **Anonymous labels** (decision 030, 2026-11-17). The page never shows who gave
-which label. The only per-person figures are on **Progress**: *Labels per stage*,
-coloured per person (Yeongseok's paper stages dark green, on-screen stages light
-green, everyone else a muted colour of their own), and *Labels per person*, a bar
-of each person's total. Other labels appear as "Another annotator" (or "paper"),
+which label. The only per-person figure is on **Progress**: the *By annotator*
+table of how many labels each person has given (paper counted separately). *Labels
+per stage* splits each stage into on-screen and paper labels. Other labels appear as "Another annotator" (or "paper"),
 model-review scores are pooled over all reviewers, and there is no CSV download
 on the page. The server enforces this: `/api/labels` carries no names, only
 whether a label is the caller's own; review files are served with names removed.

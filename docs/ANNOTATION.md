@@ -47,9 +47,9 @@ throwaway copy of the database; pictures go to the Git-ignored `WORKSPACE/guide/
 
    → or Space skips, ← goes back, Delete clears your label, O hides the
    outline, the mouse wheel zooms.
-3. Labels from other people are shown beside the image, **without names**
-   ("Another annotator"; decision 030). Everyone can stage
-   every tubule; disagreement is data, not an error.
+3. Other people's stages are **not shown** (decision 031), so each stage is
+   independent. Everyone can stage every tubule; disagreement is data, not an
+   error.
 4. **Log out** when you finish. That saves a CSV of all labels.
 
 **Lists.** "Not staged by me" (default) shows tubules nobody has staged first,
@@ -68,22 +68,29 @@ discards them too. Correcting paper readings (F / T) needs a named login.
 **Anonymous labels** (decision 030, 2026-11-17). The page never shows who gave
 which label. The only per-person figure is on **Progress**: the *By annotator*
 table of how many labels each person has given (paper counted separately). *Labels
-per stage* splits each stage into on-screen and paper labels. Other labels appear as "Another annotator" (or "paper"),
-model-review scores are pooled over all reviewers, and there is no CSV download
+per stage* splits each stage into on-screen and paper labels and leaves out the
+priority scoring samples. Model-review scores are pooled over all reviewers, and there is no CSV download
 on the page. The server enforces this: `/api/labels` carries no names, only
 whether a label is the caller's own; review files are served with names removed.
 Names stay in `labels.sqlite`, its backups and the logout exports, which only the
 owner sees (`scripts/sync.sh pull`).
 
 **Section map (staging).** On **Progress**, click a section in "By section".
-The whole section opens, each tubule coloured by the stage it has so far (your
-label first, then the newest on-screen label, then paper; or only yours),
-with its numeral; uncoloured tubules have no stage yet, dark grey ones are
-flagged crops that are not staged. It shows at a glance how complete a section
-is. Untick **Overlay** (or press O) to see the section as scanned, without
-outlines, colours or numerals. Click a tubule to open it in Annotate and label it; labelling then carries
+The whole section opens, with each tubule coloured by how many people have staged
+it (a paper stage counts as one person): red for 1, yellow for 2, green for 3 or
+more, which marks it complete. The map never shows who staged a tubule or which
+stage they gave. Uncoloured tubules have not been staged yet, and dark grey ones
+are flagged crops that are not staged. Untick **Overlay** (or press O) to see the section as
+scanned, without outlines or colours. Click a tubule to open it in Annotate and label it; labelling then carries
 on through the list as normal (if the tubule is not in your current list, the
 list switches to "All accepted tubules").
+
+**Priority scoring samples (decision 031).** "By section" has two categories:
+**Priority Scoring Samples** (`#66_Naive-P61_1.tif` and `#66_Naive-P61_2.tif`, each
+in a dark green bubble) and **Training Samples** (every other section). Annotate
+shows nothing about other people on any section. The server enforces this:
+`/api/labels` sends neither the name nor the on-screen stage of another person.
+Paper readings appear only in the "Paper readings to check" list.
 
 **Segmentation review** shows the crops as a grid, like the original review
 sheet (owner, 2026-11-13). Judge the yellow outline. Click a crop or use ← →,

@@ -50,6 +50,9 @@ MODES = {
 }
 PAPER = "paper"
 WEB = "web"
+# Decision 031: the wild-type sections that become the grading sheet. Priority
+# on the page; nobody sees another person's stage on them, only who has staged.
+GRADING_SECTIONS = ("#66_Naive-P61_1.tif", "#66_Naive-P61_2.tif")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tubules (
@@ -176,6 +179,16 @@ class Store:
         with self.lock:
             rows = self.db.execute("SELECT * FROM tubules ORDER BY seq").fetchall()
         return [dict(r) for r in rows]
+
+    def grading_tubules(self) -> set[str]:
+        """Every tubule on a grading sheet (decision 031)."""
+        marks = ",".join("?" * len(GRADING_SECTIONS))
+        with self.lock:
+            rows = self.db.execute(
+                f"SELECT tubule_id FROM tubules WHERE source_name IN ({marks})",
+                GRADING_SECTIONS,
+            ).fetchall()
+        return {r[0] for r in rows}
 
     # ---- labels --------------------------------------------------------
     def set_label(

@@ -26,7 +26,8 @@ queued labels and logs out. ``--end-sessions`` ends any session left open.
 Labels are anonymous on the page (decision 030): ``/api/labels`` never names who
 gave a label, only whether it is the caller's own (``mine``); the only per-person
 figures are counts (``/api/progress``). Names stay in the database, its backups
-and exports, which only the owner sees.
+and exports, which only the owner sees. Another person's on-screen stage is never
+sent to the page (decision 031), only that a label exists.
 """
 
 from __future__ import annotations
@@ -49,6 +50,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from eyespy_spermatogenesis.staging.annotate.hosting import guard_local_server
 from eyespy_spermatogenesis.staging.annotate.store import (
+    GRADING_SECTIONS,
     MODES,
     PAPER,
     STAGES,
@@ -65,6 +67,8 @@ NOTICE_FILE = "UPDATE_NOTICE.json"
 # Detail fields that name a person; never sent to the page (decision 030).
 NAMED_DETAIL = ("transcription_checked_by", "transcription_checked_at")
 NAMED_KEYS = {"annotator", "annotators", *NAMED_DETAIL}
+# Modes whose labels are stages, so they stay hidden on grading sheets (decision 031).
+STAGE_MODES = {"staging", "model_review"}
 
 
 def strip_names(obj, names: re.Pattern | None = None):
@@ -157,39 +161,58 @@ class App:
             return None
 
     def anonymous_labels(self, mode: str | None, session_id) -> list[dict]:
-        """Labels for the page: newest first, no names, ``mine`` for the caller's."""
+        """Labels for the page: newest first, no names, ``mine`` for the caller's.
+
+        Another person's on-screen stage is withheld (decision 031): the row says
+        only that it exists (``hidden``). On a priority scoring sample paper
+        stages are withheld too. ``repeat`` marks a paper label whose author also
+        staged the tubule on screen, so one person is counted once.
+        """
         me = self.caller(session_id)
+        grading = self.store.grading_tubules()
         rows = sorted(
             self.store.labels(mode), key=lambda r: when(r["updated_at"]), reverse=True
         )
+        on_screen = {
+            (r["tubule_id"], r["annotator"])
+            for r in rows
+            if r["mode"] == "staging" and r["origin"] == "web" and r["value"]
+        }
         out = []
         for r in rows:
+            mine = r["origin"] == "web" and me is not None and r["annotator"] == me
             detail = strip_names(r["detail"])
             if r["detail"].get("transcription_checked_by"):
                 detail["transcription_checked"] = True
-            out.append(
-                {
-                    "tubule_id": r["tubule_id"],
-                    "mode": r["mode"],
-                    "origin": r["origin"],
-                    "value": r["value"],
-                    "detail": detail,
-                    "mine": r["origin"] == "web"
-                    and me is not None
-                    and r["annotator"] == me,
-                }
-            )
+            row = {
+                "tubule_id": r["tubule_id"],
+                "mode": r["mode"],
+                "origin": r["origin"],
+                "value": r["value"],
+                "detail": detail,
+                "mine": mine,
+            }
+            on_sample = r["tubule_id"] in grading and r["mode"] in STAGE_MODES
+            staged_on_screen = r["mode"] == "staging" and r["origin"] == "web"
+            if not mine and (on_sample or staged_on_screen):
+                row.update(value=None, detail={}, hidden=r["value"] is not None)
+            if r["origin"] == PAPER and (r["tubule_id"], r["annotator"]) in on_screen:
+                row["repeat"] = True
+            out.append(row)
         return out
 
     def progress(self, mode: str, run: str | None = None) -> list[dict]:
         """Per-person label counts, in total and per stage/verdict: the only
-        per-person figures the page shows (decision 030)."""
+        per-person figures the page shows (decision 030). Grading sheets count
+        towards the totals but never the per-stage figures (decision 031)."""
+        marks = ",".join("?" * len(GRADING_SECTIONS))
         sql = (
-            "SELECT l.annotator, l.origin, l.value, count(*) FROM labels l "
+            f"SELECT l.annotator, l.origin, l.value, t.source_name IN ({marks}), "
+            "count(*) FROM labels l "
             "JOIN tubules t ON t.tubule_id = l.tubule_id "
             "WHERE l.mode = ? AND l.value IS NOT NULL"
         )
-        args: list = [mode]
+        args: list = [*GRADING_SECTIONS, mode]
         if mode == "staging":
             sql += " AND t.recommended = 1"
         if mode == "model_review":
@@ -199,14 +222,15 @@ class App:
             )
             args.append(run)
         with self.store.lock:
-            rows = self.store.db.execute(sql + " GROUP BY 1, 2, 3", args).fetchall()
+            rows = self.store.db.execute(sql + " GROUP BY 1, 2, 3, 4", args).fetchall()
         people: dict[tuple, dict] = {}
-        for who, origin, value, n in rows:
+        for who, origin, value, on_grading_sheet, n in rows:
             p = people.setdefault(
                 (who, origin), {"name": who, "origin": origin, "n": 0, "values": {}}
             )
             p["n"] += n
-            p["values"][value] = n
+            if not on_grading_sheet:
+                p["values"][value] = n
         return sorted(people.values(), key=lambda p: -p["n"])
 
     def online(self) -> list[dict]:
@@ -345,6 +369,7 @@ def make_handler(app: App):
                             "stages": STAGES,
                             "verdicts": VERDICTS,
                             "annotators": app.store.annotators(),
+                            "grading_sections": list(GRADING_SECTIONS),
                             "workspace": str(app.workspace),
                             "info": app.info,
                             "last_backup": app.last_backup,

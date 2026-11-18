@@ -239,6 +239,14 @@ const labelsOf = (tid) => S.labels.get(tid) || [];
 const mineOf = (tid) => labelsOf(tid).find((l) => l.origin === "web" && l.mine);
 const paperOf = (tid) => labelsOf(tid).find((l) => l.origin === "paper");
 const othersOf = (tid) => labelsOf(tid).filter((l) => !(l.origin === "web" && l.mine));
+// Decision 031: the server withholds other people's on-screen stages and says only
+// that a label exists ("hidden"), never who gave it.
+const isGrading = (sourceName) => (S.cfg.grading_sections || []).includes(sourceName);
+const hasLabel = (l) => !!(l.value || l.hidden);
+// How many people have staged a tubule; paper plus on-screen by one person counts once.
+const peopleOn = (tid) => labelsOf(tid).filter((l) => hasLabel(l) && !l.repeat).length;
+// Paper readings show only while checking them, so they don't sway anyone's own stage.
+const paperListOpen = () => $("f-queue").value === "paper_check";
 const staging = () => S.session && S.session.mode === "staging";
 const review = () => S.session && S.session.mode === "model_review";
 const seg = () => S.session && S.session.mode === "segmentation";
@@ -301,7 +309,7 @@ function matches(t) {
   if (!inPool(t) || (src !== "all" && t.source_folder !== src)) return false;
   const labs = labelsOf(t.tubule_id);
   if (q === "mine") return !mineOf(t.tubule_id);
-  if (q === "unlabelled") return !labs.some((l) => l.value);
+  if (q === "unlabelled") return !labs.some(hasLabel);
   if (q === "paper_check") { const p = paperOf(t.tubule_id); return !!(p && p.detail.needs_check); }
   if (q === "rec") return t.recommended === 1;
   if (q === "flagged") return t.recommended === 0;
@@ -318,7 +326,7 @@ function buildQueue(keepCurrent = false) {
     list.sort((a, b) => ($("f-queue").value === "mine" ? done(a) - done(b) : 0) || ord(a) - ord(b));
   } else if ($("f-queue").value === "mine") {
     // coverage first: tubules nobody has labelled yet, then the rest
-    const done = (t) => (labelsOf(t.tubule_id).some((l) => l.value) ? 1 : 0);
+    const done = (t) => (labelsOf(t.tubule_id).some(hasLabel) ? 1 : 0);
     list.sort((a, b) => done(a) - done(b) || a.seq - b.seq);
   }
   S.queue = list.map((t) => t.tubule_id);
@@ -387,19 +395,22 @@ function renderSide() {
     el("div", {}, el("b", { text: t.source_name })),
     el("div", { text: t.recommended ? "Accepted crop" : "Flagged: " + (t.flags || "—").replaceAll(";", ", ") }),
   );
+  if (isGrading(t.source_name)) $("meta").append(el("div", { text: "Priority scoring sample" }));
   if (t.display_scale < 1) $("meta").append(el("div", { text: `Shown at ${Math.round(t.display_scale * 100)}% (large crop)` }));
   const mine = mineOf(tid);
   $("mine").textContent = mine ? nameOf(mine.value) : "—";
-  const others = review() && !mine ? [] : othersOf(tid).filter((l) => l.origin === "web");
+  // Staging shows nothing about other people (decision 031).
+  const quiet = staging();
+  const others = quiet || (review() && !mine) ? [] : othersOf(tid).filter((l) => l.origin === "web" && !l.hidden);
   if (review() && !mine) $("others").append(el("div", { class: "none", text: "Other reviewers' answers appear after yours." }));
-  else if (!others.length) $("others").append(el("div", { class: "none", text: "No one else has labelled this yet." }));
+  else if (!quiet && !others.length) $("others").append(el("div", { class: "none", text: "No one else has labelled this yet." }));
   for (const o of others) {
     const cls = !mine ? "other" : o.value === mine.value ? "other agree" : "other disagree";
     $("others").append(el("div", { class: cls }, el("span", { text: review() ? "Another reviewer" : "Another annotator" }), el("b", { text: nameOf(o.value) })));
   }
   if (review()) renderReview(tid, mine);
   const p = staging() && paperOf(tid);
-  if (p) {
+  if (p && !p.hidden && paperListOpen()) {
     $("paper").hidden = false;
     $("paper").classList.toggle("needs-check", !!p.detail.needs_check);
     $("paper-who").textContent = "";
@@ -546,8 +557,8 @@ document.addEventListener("keydown", (e) => {
   if (k === "o") { setOutline(!S.outline); return; }
   if (k === "escape") { S.fixing = false; renderSide(); return; }
   if (k === "delete" || k === "backspace") { e.preventDefault(); clearMine(); return; }
-  if (staging() && k === "t") { confirmTranscription(); return; }
-  if (staging() && k === "f" && paperOf(S.current)) { S.fixing = true; $("paper-fixing").hidden = false; return; }
+  if (staging() && paperListOpen() && k === "t") { confirmTranscription(); return; }
+  if (staging() && paperListOpen() && k === "f" && paperOf(S.current)) { S.fixing = true; $("paper-fixing").hidden = false; return; }
   let hit = choices().find((c) => c[2] === k);
   if ((staging() || review()) && k === "3") hit = choices().find((c) => c[0] === "II-III");
   if (hit) { e.preventDefault(); choose(hit[0]); }
@@ -713,8 +724,26 @@ function renderPeople(people) {
   for (const p of people) tp.append(el("tr", {}, el("td", { text: p.name + (p.origin === "paper" ? " (paper)" : "") }), el("td", { text: String(p.n) })));
 }
 
+// Totals from the server, because other people's stages are not sent to the page.
+function renderStageBars(people) {
+  if (!S.session) return;
+  const bars = $("stage-bars");
+  bars.innerHTML = "";
+  const counts = new Map(choices().map((c) => [c[0], { web: 0, paper: 0 }]));
+  for (const p of people) for (const [v, n] of Object.entries(p.values)) if (counts.has(v)) counts.get(v)[p.origin === "paper" ? "paper" : "web"] += n;
+  const max = Math.max(1, ...[...counts.values()].map((c) => c.web + c.paper));
+  bars.append(el("div", { class: "legend" }, el("i", { style: "background:var(--green-500)" }), "on screen", el("i", { style: "background:var(--blue)" }), "paper"));
+  for (const [v, c] of counts) {
+    const track = el("div", { class: "bar-track" },
+      el("div", { class: "bar", style: `width:${(100 * c.web) / max}%` }),
+      el("div", { class: "bar paper", style: `width:${(100 * c.paper) / max}%` }));
+    bars.append(el("div", { class: "bar-row" }, el("span", { text: nameOf(v).replace("Can't stage / bad crop", "Can't stage") }), track, el("span", { text: String(c.web + c.paper) })));
+  }
+}
+
 function renderProgress() {
-  loadPeople().then(renderPeople).catch((e) => toast("Progress: " + e.message, true));
+  loadPeople().then((people) => { renderPeople(people); if (!review()) renderStageBars(people); })
+    .catch((e) => toast("Progress: " + e.message, true));
   if (review()) return renderReviewProgress();
   $("stage-panel").hidden = false;
   $("by-source").closest(".panel").querySelector("h2").textContent = "By section";
@@ -724,8 +753,8 @@ function renderProgress() {
   $("progress-lede").textContent = st
     ? "Accepted (unflagged) tubules only. Paper stages are counted separately from on-screen labels."
     : "All candidates, accepted and flagged.";
-  const web = (tid) => labelsOf(tid).filter((l) => l.origin === "web" && l.value);
-  const anyStage = (tid) => labelsOf(tid).some((l) => l.value);
+  const web = (tid) => labelsOf(tid).filter((l) => l.origin === "web" && hasLabel(l));
+  const anyStage = (tid) => labelsOf(tid).some(hasLabel);
   const n = pool.length, done1 = pool.filter((t) => anyStage(t.tubule_id)).length;
   const done2 = pool.filter((t) => web(t.tubule_id).length >= 2).length; // one web label per person
   const papers = pool.filter((t) => paperOf(t.tubule_id)).length;
@@ -751,9 +780,10 @@ function renderProgress() {
   tb.innerHTML = "";
   const head = st ? ["Section", "Accepted", "Have a stage", "2+ people", "Paper", "To check", "You"] : ["Section", "Candidates", "Reviewed", "2+ people", "You"];
   tb.append(el("tr", {}, ...head.map((h) => el("th", { text: h }))));
-  for (const [folder, r] of bySrc) {
+  const addRow = ([folder, r]) => {
     const cells = st ? [r.name, r.n, r.any, r.two, r.paper, r.check, r.mine] : [r.name, r.n, r.any, r.two, r.mine];
-    const tr = el("tr", st ? { class: "clickable", title: "Open the section map" } : {}, ...cells.map((c) => el("td", { text: String(c) })));
+    const sample = st && isGrading(r.name);
+    const tr = el("tr", st ? { class: "clickable" + (sample ? " priority" : ""), title: "Open the section map" } : {}, ...cells.map((c) => el("td", { text: String(c) })));
     if (st) {
       tr.addEventListener("click", () => openSectionMap(r.name, folder).catch((e) => toast("Section map: " + e.message, true)));
       let dwell;
@@ -761,22 +791,19 @@ function renderProgress() {
       tr.addEventListener("mouseleave", () => clearTimeout(dwell));
     }
     tb.append(tr);
-  }
+    if (sample) tb.append(el("tr", { class: "bubble-gap" }, el("td", { colspan: String(head.length) })));
+  };
+  const category = (text) => tb.append(el("tr", { class: "category" }, el("td", { colspan: String(head.length), text })));
+  const rows = [...bySrc];
+  if (st) {
+    category("Priority Scoring Samples");
+    rows.filter(([, r]) => isGrading(r.name)).forEach(addRow);
+    category("Training Samples");
+    rows.filter(([, r]) => !isGrading(r.name)).forEach(addRow);
+  } else rows.forEach(addRow);
 
-  const bars = $("stage-bars");
-  bars.innerHTML = "";
   if (st) setTimeout(prefetchSections, 1500); // after the page itself has loaded
   $("stage-panel").querySelector("h2").textContent = st ? "Labels per stage" : "Labels per verdict";
-  const counts = new Map(choices().map((c) => [c[0], { web: 0, paper: 0 }]));
-  for (const t of pool) for (const l of labelsOf(t.tubule_id)) if (l.value && counts.has(l.value)) counts.get(l.value)[l.origin === "paper" ? "paper" : "web"]++;
-  const max = Math.max(1, ...[...counts.values()].map((c) => c.web + c.paper));
-  bars.append(el("div", { class: "legend" }, el("i", { style: "background:var(--green-500)" }), "on screen", el("i", { style: "background:var(--blue)" }), "paper"));
-  for (const [v, c] of counts) {
-    const track = el("div", { class: "bar-track" },
-      el("div", { class: "bar", style: `width:${(100 * c.web) / max}%` }),
-      el("div", { class: "bar paper", style: `width:${(100 * c.paper) / max}%` }));
-    bars.append(el("div", { class: "bar-row" }, el("span", { text: nameOf(v).replace("Can't stage / bad crop", "Can't stage") }), track, el("span", { text: String(c.web + c.paper) })));
-  }
   $("export-note").textContent = S.cfg.last_backup ? `Last automatic backup: ${S.cfg.last_backup.replace("T", " ").slice(0, 16)}` : "";
 }
 
@@ -1095,15 +1122,11 @@ function bindSegGrid() {
   }
 }
 
-// ---------- staging Progress: whole-section map coloured by the stages so far (owner, 2026-11-13) ----------
+// ---------- staging Progress: whole-section map of staging coverage (decision 031) ----------
+// Shows how many people staged each tubule, never who or which stage.
 // Click a tubule to open it in Annotate. Images: review/sections/<section>.jpg + review/maps/<section>.png.
-function stageRGB(k) {
-  const n = STG().length, h = k / n, sat = 0.8, v = k % 2 === 0 ? 0.95 : 0.72;
-  const i = Math.floor(h * 6), f = h * 6 - i, p = v * (1 - sat), q = v * (1 - sat * f), t = v * (1 - sat * (1 - f));
-  const [r, g, b] = [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]][i % 6];
-  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
-}
-const CANT_RGB = [150, 150, 150], FLAG_RGB = [70, 70, 70];
+const FLAG_RGB = [70, 70, 70];
+const COUNT_RGB = [[214, 48, 49], [242, 201, 30], [30, 150, 85]]; // staged by 1, 2, 3 or more (complete)
 const SM = { section: null, sourceName: null, map: null, ov: null, overlay: true };
 const OVS = new Map();
 // Decoded pictures are large (about 12 MB each): keep only the latest few.
@@ -1148,15 +1171,6 @@ function overviewPixels(section) {
   }
   return OVS.get(section);
 }
-function smLabel(tid) {
-  const mine = mineOf(tid);
-  if ($("sm-who").value === "mine") return mine && mine.value ? { value: mine.value, who: "you" } : null;
-  if (mine && mine.value) return { value: mine.value, who: "you" };
-  const web = labelsOf(tid).filter((l) => l.origin === "web" && l.value); // newest first, from the server
-  if (web.length) return { value: web[0].value, who: "another annotator" };
-  const p = paperOf(tid);
-  return p && p.value ? { value: p.value, who: "paper" } : null;
-}
 async function openSectionMap(sourceName, folder) {
   const section = sourceName.replace(/\.tiff?$/i, "");
   // Clear the previous section at once, so it never shows while this one loads.
@@ -1165,6 +1179,7 @@ async function openSectionMap(sourceName, folder) {
   const cv = $("sm-canvas");
   cv.width = 0; cv.height = 0;
   $("sm-title").textContent = section;
+  $("sm-eyebrow").textContent = `${isGrading(sourceName) ? "Priority scoring sample" : "Training sample"} · how many people have staged it`;
   $("sm-summary").textContent = "Loading…";
   $("sm-legend").style.visibility = "hidden";
   $("sm").hidden = false;
@@ -1188,66 +1203,54 @@ function drawSectionMap() {
     const wrap0 = cv0.parentElement;
     cv0.style.height = Math.min(wrap0.clientHeight, (wrap0.clientWidth * h) / w) + "px";
     cv0.style.width = "auto";
-    $("sm-summary").textContent = "Overlay off: the section as scanned. Press O or tick Overlay to show tubules and stages again.";
+    $("sm-summary").textContent = "Overlay off: the section as scanned. Press O or tick Overlay to show the tubules again.";
     return;
   }
   const tubs = S.tubules.filter((t) => t.source_name === SM.sourceName);
   const maxLab = Math.max(0, ...tubs.map((t) => t.label));
-  const col = new Int16Array((maxLab + 1) * 3).fill(-1), text = new Map();
-  const stg = STG();
+  const cols = new Array(maxLab + 1).fill(null); // tubule -> its colour
+  const byCount = [0, 0, 0]; // tubules staged by 1, 2, 3 or more people
   let n = 0, staged = 0, mineN = 0;
   for (const t of tubs) {
-    const o = t.label * 3;
-    if (!t.recommended) { col.set(FLAG_RGB, o); continue; }
+    if (!t.recommended) { cols[t.label] = FLAG_RGB; continue; }
     n++;
     if (mineOf(t.tubule_id)) mineN++;
-    const lab = smLabel(t.tubule_id);
-    if (!lab) continue;
+    const people = Math.min(peopleOn(t.tubule_id), 3);
+    if (!people) continue;
     staged++;
-    if (lab.value === "cant_stage") { col.set(CANT_RGB, o); continue; }
-    const k = stg.indexOf(lab.value);
-    if (k >= 0) { col.set(stageRGB(k), o); text.set(t.label, lab.value.replace("II-III", "II")); }
+    byCount[people - 1]++;
+    cols[t.label] = COUNT_RGB[people - 1];
   }
   const cv = $("sm-canvas");
   cv.width = w; cv.height = h;
   const g = cv.getContext("2d");
   const img = g.createImageData(w, h), d = img.data;
-  const sx = new Float64Array(maxLab + 1), sy = new Float64Array(maxLab + 1), cnt = new Float64Array(maxLab + 1);
   const L = (i) => md[i * 4] + 256 * md[i * 4 + 1];
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x, j = i * 4, lab = L(i);
       const grey = (od[j] + od[j + 1] + od[j + 2]) / 3;
       let r = 0.35 * od[j] + 0.65 * grey, gg = 0.35 * od[j + 1] + 0.65 * grey, b = 0.35 * od[j + 2] + 0.65 * grey;
-      if (lab && lab <= maxLab) {
-        sx[lab] += x; sy[lab] += y; cnt[lab]++;
-        const o = lab * 3;
-        if (col[o] >= 0) { r = 0.45 * r + 0.55 * col[o]; gg = 0.45 * gg + 0.55 * col[o + 1]; b = 0.45 * b + 0.55 * col[o + 2]; }
-      }
+      const c = lab && lab <= maxLab ? cols[lab] : null;
+      if (c) { r = 0.45 * r + 0.55 * c[0]; gg = 0.45 * gg + 0.55 * c[1]; b = 0.45 * b + 0.55 * c[2]; }
       const right = x + 1 < w ? L(i + 1) : lab, down = y + 1 < h ? L(i + w) : lab;
       if ((right !== lab || down !== lab) && (lab || right || down)) { r = 255; gg = 255; b = 255; }
       d[j] = r; d[j + 1] = gg; d[j + 2] = b; d[j + 3] = 255;
     }
   }
   g.putImageData(img, 0, 0);
-  g.font = `bold ${Math.max(11, Math.round(w / 55))}px sans-serif`;
-  g.textAlign = "center"; g.textBaseline = "middle"; g.lineWidth = Math.max(3, Math.round(w / 300)); g.strokeStyle = "#fff"; g.fillStyle = "#000";
-  for (const [lab, tx] of text) {
-    if (!cnt[lab]) continue;
-    const x = sx[lab] / cnt[lab], y = sy[lab] / cnt[lab];
-    g.strokeText(tx, x, y); g.fillText(tx, x, y);
-  }
   const wrap = cv.parentElement;
   cv.style.height = Math.min(wrap.clientHeight, (wrap.clientWidth * h) / w) + "px";
   cv.style.width = "auto";
-  $("sm-summary").textContent = `${n} accepted tubules: ${staged} have a stage (${pct(n ? staged / n : null)})`
-    + `${$("sm-who").value === "mine" ? " from you" : ""}, ${mineN} labelled by you. Uncoloured tubules have no stage yet.`;
+  $("sm-summary").textContent = `${n} accepted tubules: ${staged} staged (${pct(n ? staged / n : null)}), ${mineN} by you. Green tubules are complete.`;
   const lg = $("sm-legend");
   lg.innerHTML = "";
-  stg.forEach((s, k) => lg.append(el("span", {}, el("i", { style: `background:rgb(${stageRGB(k)})` }), stageName(s))));
-  lg.append(el("span", {}, el("i", { style: `background:rgb(${CANT_RGB})` }), "Can't stage"),
-    el("span", {}, el("i", { style: `background:rgb(${FLAG_RGB})` }), "Flagged crop (not staged)"),
-    el("span", {}, el("i", { style: "background:#d8d8d8" }), "No stage yet"));
+  const key = (rgb, text) => lg.append(el("span", {}, el("i", { style: `background:rgb(${rgb})` }), text));
+  key([216, 216, 216], `Not staged yet: ${n - staged}`);
+  key(COUNT_RGB[0], `Staged by 1: ${byCount[0]}`);
+  key(COUNT_RGB[1], `Staged by 2: ${byCount[1]}`);
+  key(COUNT_RGB[2], `Staged by 3+: ${byCount[2]}`);
+  key(FLAG_RGB, "Flagged crop (not staged)");
 }
 async function smTubuleAt(e) {
   const lab = await labelAt(SM.section, $("sm-canvas"), e);
@@ -1266,8 +1269,7 @@ function goAnnotate(t) {
 function bindSectionMap() {
   $("sm-close").addEventListener("click", () => { $("sm").hidden = true; });
   $("sm").addEventListener("click", (e) => { if (e.target === $("sm")) $("sm").hidden = true; });
-  $("sm-who").addEventListener("change", () => SM.map && drawSectionMap());
-  const setOverlay = (on) => { SM.overlay = on; $("sm-overlay").checked = on; $("sm-who").disabled = !on; if (SM.map) drawSectionMap(); };
+  const setOverlay = (on) => { SM.overlay = on; $("sm-overlay").checked = on; if (SM.map) drawSectionMap(); };
   $("sm-overlay").addEventListener("change", () => setOverlay($("sm-overlay").checked));
   const cv = $("sm-canvas");
   cv.addEventListener("click", async (e) => {
@@ -1282,10 +1284,11 @@ function bindSectionMap() {
     busy = true;
     try {
       const t = await smTubuleAt(e);
-      const lab = t && smLabel(t.tubule_id);
+      const count = t ? peopleOn(t.tubule_id) : 0;
+      const state = count ? `staged by ${count} ${count === 1 ? "person" : "people"}` : "not staged yet";
       $("sm-hover").textContent = !t ? "Click a tubule to label it in Annotate."
         : !t.recommended ? `#${t.label} · flagged crop (not staged)`
-        : `#${t.label} · ${lab ? nameOf(lab.value) + " (" + lab.who + ")" : "no stage yet"} · click to label`;
+        : `#${t.label} · ${state} · click to label`;
     } finally { busy = false; }
   });
   document.addEventListener("keydown", (e) => {

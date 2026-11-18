@@ -219,6 +219,15 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 #by-source tr.clickable { cursor: pointer; }
 #by-source tr.clickable:hover td { background: var(--green-100); }
 #by-source tr.clickable td:first-child { color: var(--green-800); text-decoration: underline; text-underline-offset: 3px; }
+/* By section: two categories; priority scoring samples sit in green bubbles (decision 031). */
+#by-source { border-collapse: separate; border-spacing: 0; }
+#by-source tr.category td { padding: 1rem 0.6rem 0.45rem; border-bottom: 0; color: var(--green-800);
+  font-family: Georgia, serif; font-size: 1.05rem; }
+#by-source tr.priority td { background: var(--green-100); border-top: 2px solid var(--green-800); border-bottom: 2px solid var(--green-800); }
+#by-source tr.priority:hover td { background: #c9e0d7; }
+#by-source tr.priority td:first-child { border-left: 2px solid var(--green-800); border-radius: 999px 0 0 999px; padding-left: 1.1rem; }
+#by-source tr.priority td:last-child { border-right: 2px solid var(--green-800); border-radius: 0 999px 999px 0; padding-right: 1.1rem; }
+#by-source tr.bubble-gap td { height: 6px; padding: 0; border: 0; }
 .sm-canvas-wrap { flex: 1; min-height: 0; overflow: auto; display: flex; justify-content: center; align-items: flex-start; }
 #sm-canvas { max-width: 100%; max-height: 100%; cursor: pointer; border-radius: 8px; image-rendering: auto; }
 

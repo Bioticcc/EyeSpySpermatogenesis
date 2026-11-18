@@ -11,7 +11,11 @@ from http.server import ThreadingHTTPServer
 import pytest
 
 from eyespy_spermatogenesis.staging.annotate.server import App, make_handler
-from eyespy_spermatogenesis.staging.annotate.store import PAPER, Store
+from eyespy_spermatogenesis.staging.annotate.store import (
+    GRADING_SECTIONS,
+    PAPER,
+    Store,
+)
 
 
 def tubule(i, recommended=1):
@@ -235,9 +239,12 @@ def test_labels_are_anonymous_on_the_page(server, ws):
     for name in (b"Ann", b"Bob", b"Yeongseok", b"annotator", b"updated_at"):
         assert name not in raw
     labs = json.loads(raw)
-    assert sorted((r["value"], r["mine"]) for r in labs if r["origin"] == "web") == [
-        ("IV", True), ("IV", True), ("V", False), ("V", False),
-    ]  # fmt: skip
+    web = [r for r in labs if r["origin"] == "web"]
+    assert sorted(r["value"] for r in web if r["mine"]) == ["IV", "IV"]
+    # decision 031: another person's stage is withheld, only its existence is sent
+    others = [r for r in web if not r["mine"]]
+    assert len(others) == 2
+    assert all(r["value"] is None and r["hidden"] is True for r in others)
     paper = [r for r in labs if r["origin"] == "paper"][0]
     assert paper["detail"]["transcription_checked"] is True
     # without a session nothing is "mine"
@@ -261,6 +268,49 @@ def test_labels_are_anonymous_on_the_page(server, ws):
         "sources": [{"origin": "paper", "n": 3}],
         "note": "an annotator's paper labels; checked by an annotator",
     }
+
+
+def test_scoring_samples_send_neither_names_nor_other_peoples_stages(server):
+    """Decision 031: the page learns only that another person's label exists."""
+    app, base = server
+    sheet = GRADING_SECTIONS[0]
+    tid = "src/series-0/candidate-3"
+    app.store.add_tubules([{**tubule(3), "source_name": sheet}])
+    plain = "src/series-0/candidate-1"
+    sids = {}
+    for name, value in (("Ann", "IV"), ("Bob", "IX")):
+        _, body = call(base, "/api/login", {"name": name, "mode": "staging"}, app.token)
+        sids[name] = json.loads(body)["session_id"]
+        for t in (tid, plain):
+            lab = {"session_id": sids[name], "tubule_id": t, "value": value}
+            assert call(base, "/api/label", lab, app.token)[0] == 200
+
+    def rows(query, tubule_id):
+        labs = json.loads(call(base, "/api/labels?mode=staging" + query)[1])
+        return [r for r in labs if r["tubule_id"] == tubule_id]
+
+    seen = rows(f"&session={sids['Ann']}", tid)
+    own = next(r for r in seen if r["mine"])
+    other = next(r for r in seen if not r["mine"])
+    assert own["value"] == "IV" and "hidden" not in own
+    assert other["value"] is None and other["hidden"] is True
+    raw = call(base, f"/api/labels?mode=staging&session={sids['Ann']}")[1]
+    assert b"Ann" not in raw and b"Bob" not in raw
+    # without a session every stage on the sheet is withheld
+    assert [r["value"] for r in rows("", tid)] == [None, None]
+    # other sections: only your own stage, and no names at all
+    others = rows(f"&session={sids['Ann']}", plain)
+    assert sorted(str(r["value"]) for r in others) == ["IV", "None"]
+    # one person's paper and on-screen labels are marked, so they count once
+    app.store.set_label(plain, "staging", "Bob", "IX", origin=PAPER)
+    paper = [r for r in rows("", plain) if r["origin"] == PAPER][0]
+    assert paper["repeat"] is True and paper["value"] == "IX"
+    # per-person totals count the sheet; the per-stage figures leave it out
+    people = json.loads(call(base, "/api/progress?mode=staging")[1])
+    bob = next(p for p in people if p["name"] == "Bob")
+    assert (bob["n"], bob["values"]) == (2, {"IX": 1})
+    config = json.loads(call(base, "/api/config")[1])
+    assert config["grading_sections"] == list(GRADING_SECTIONS)
 
 
 def test_online_list_is_not_served_through_the_tunnel(server):

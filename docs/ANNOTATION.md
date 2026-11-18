@@ -1,8 +1,18 @@
 # Staging annotation page
 
-A local page where lab experts stage tubules (or review outlines) one crop at a
-time. It runs on this workstation only (decision 021) and collects training
-labels for a future staging model.
+A page where lab experts stage tubules (or review outlines) one crop at a
+time. It collects training labels for the staging model. From 2026-11-16 it is
+**hosted** for outside annotators (decision 028; setup and syncing in
+[HOSTING.md](HOSTING.md)). Before that it ran on this workstation only
+(decision 021). `/` is an illustrated guide for annotators; the page itself is
+at `/app`.
+
+**Once hosted, the server's database is the live one.**
+- Before training, or whenever you want fresh labels here, run `scripts/sync.sh pull`.
+- Every command below that writes to the workspace (`prepare`, `paper_import`,
+  `eyespy review`/`train`, `round1.review`/`overlay`, `clickmaps backfill`) runs
+  between `scripts/sync.sh checkout` and `scripts/sync.sh checkin`.
+- The local page refuses to start on a hosted workspace unless it is checked out.
 
 ## Start and stop
 
@@ -12,12 +22,18 @@ pkill -f staging.annotate.server   # stop (writes a final backup)
 ```
 
 The server keeps running when the terminal closes. It does not restart after a
-reboot; run `scripts/annotate.sh` again. Only this computer can open the page.
+reboot; run `scripts/annotate.sh` again. Only this computer can open the local
+page (`http://127.0.0.1:8765/app`; the guide is at `/`).
+
+To refresh the guide's pictures after changing the page:
+`PYTHON_WITH_PLAYWRIGHT scripts/make_guide_screenshots.py WORKSPACE` (works on a
+throwaway copy of the database; pictures go to the Git-ignored `WORKSPACE/guide/`).
 
 ## For annotators
 
 1. Type your name and choose **Staging**, **Segmentation review** or **Model review**. There is
-   no password; the name only labels your work.
+   no password; the name only labels your work. To look around without saving
+   anything, click **Just look around (guest)** instead (see *Guest mode* below).
 2. Press a key and the page saves it and moves on:
 
    | Key | Stage | Key | Stage |
@@ -31,7 +47,8 @@ reboot; run `scripts/annotate.sh` again. Only this computer can open the page.
 
    → or Space skips, ← goes back, Delete clears your label, O hides the
    outline, the mouse wheel zooms.
-3. Labels from other people are shown beside the image. Everyone can stage
+3. Labels from other people are shown beside the image, **without names**
+   ("Another annotator"; decision 030). Everyone can stage
    every tubule; disagreement is data, not an error.
 4. **Log out** when you finish. That saves a CSV of all labels.
 
@@ -39,12 +56,32 @@ reboot; run `scripts/annotate.sh` again. Only this computer can open the page.
 then the rest. Staging shows accepted (unflagged) crops only; segmentation
 review shows every candidate.
 
+**Guest mode** (owner, 2026-11-17). For people who only want to look. The page
+works as normal, but labels stay in the browser tab and are **never sent to the
+server** as they are made. A banner says so throughout. On **Log out** the guest
+is asked whether to save them: typing a name saves them under that name (a normal
+session is opened, the labels are written, and it logs out with the usual CSV);
+leaving it empty discards them. Closing or reloading the tab, or a page update,
+discards them too. Correcting paper readings (F / T) needs a named login.
+"Guest" is reserved and cannot be used as an annotator name.
+
+**Anonymous labels** (decision 030, 2026-11-17). The page never shows who gave
+which label. The only per-person figure is on **Progress**: the *By annotator*
+table of how many labels each person has given (paper counted separately). *Labels
+per stage* splits each stage into on-screen and paper labels. Other labels appear as "Another annotator" (or "paper"),
+model-review scores are pooled over all reviewers, and there is no CSV download
+on the page. The server enforces this: `/api/labels` carries no names, only
+whether a label is the caller's own; review files are served with names removed.
+Names stay in `labels.sqlite`, its backups and the logout exports, which only the
+owner sees (`scripts/sync.sh pull`).
+
 **Section map (staging).** On **Progress**, click a section in "By section".
 The whole section opens, each tubule coloured by the stage it has so far (your
 label first, then the newest on-screen label, then paper; or only yours),
 with its numeral; uncoloured tubules have no stage yet, dark grey ones are
 flagged crops that are not staged. It shows at a glance how complete a section
-is. Click a tubule to open it in Annotate and label it; labelling then carries
+is. Untick **Overlay** (or press O) to see the section as scanned, without
+outlines, colours or numerals. Click a tubule to open it in Annotate and label it; labelling then carries
 on through the list as normal (if the tubule is not in your current list, the
 list switches to "All accepted tubules").
 
@@ -103,7 +140,7 @@ them after blind review, not before.
   per-stage recall and each model's settings. Untick "Comparison models" to
   hide the class-weighted ones. The page reads
   `review/eyespy/index.json`, written from `Model_Checkpoints/registry.json`.
-  Open it directly with `#view=overview&tab=eyespy` after logging in.
+  Open it directly with `/app#view=overview&tab=eyespy` after logging in.
 
 **Clicking a tubule** on any panel of either tab (owner, 2026-11-13) opens a
 grid of every tubule of that section with the same stage according to that
@@ -188,11 +225,13 @@ Everything is in the workspace folder, e.g.
 |---|---|
 | `labels.sqlite` | Current labels (one per person per tubule) and an append-only `events` log of every change |
 | `backups/` | Database + CSV copies at start-up, every hour, and at shutdown |
-| `exports/` | A CSV per log-out and per "Export CSV" click |
+| `exports/` | A CSV per log-out (with names; never downloadable from the page) |
 | `images/` | Display JPEGs and outline PNGs (viewing only; not for analysis) |
 | `paper/` | Snippets of handwritten marks |
 | `review/<run>/` | Overview panels and statistics for each model-review run |
 | `review/eyespy/` | EyeSpy tab panels and `index.json` (from `Model_Checkpoints/registry.json`) |
+| `guide/` | Screenshots for the guide at `/` (`scripts/make_guide_screenshots.py`) |
+| `HOSTED.json`, `CHECKOUT.json` | Hosted workspace / checkout in progress (`scripts/sync.sh`, decision 028) |
 | `review/maps/`, `review/sections/` | Click maps (which tubule is where) and overview images per section, for the Overview click-through and the Progress section map |
 
 Use the newest file in `exports/` or `backups/`. CSV columns: `mode,

@@ -1,25 +1,45 @@
-"""Serve the annotation page on this workstation only.
+"""Serve the annotation page.
 
 Usage::
 
     python -m eyespy_spermatogenesis.staging.annotate.server WORKSPACE [--port 8765]
 
-Binds to 127.0.0.1, so only this computer can open the page (decision 021).
+Binds to 127.0.0.1. On the workstation only this computer can open it; on the
+hosted server (decision 028) Cloudflare Tunnel reaches it from the same
+machine, behind Cloudflare Access. ``/`` is the illustrated guide (pictures
+from ``WORKSPACE/guide/``), ``/app`` the annotation page.
 Every label is committed to ``WORKSPACE/labels.sqlite`` as it is made. The
 database and a CSV snapshot are copied to ``WORKSPACE/backups/`` at start-up,
 every hour, and at shutdown. Logging out writes a CSV of all labels to
-``WORKSPACE/exports/``. State-changing requests need the per-launch token
-embedded in the page.
+``WORKSPACE/exports/``. State-changing requests need the token embedded in
+the page. It is kept in ``WORKSPACE/token.txt`` so it survives restarts (a
+deploy or checkin must not make open tabs' saves fail), and a tab whose token
+is stale fetches the current one from ``/api/token`` and retries.
+
+Open pages call ``/api/ping`` every 20 s. That tells ``scripts/sync.sh`` who has
+the page open (``/api/online``) before an immediate deploy, and tells the page
+when its code was replaced (the build id differs) so it can offer a reload.
+Before an update the server's apply step writes ``WORKSPACE/UPDATE_NOTICE.json``;
+pings then carry a countdown ("warning"), and at "closing" each page saves its
+queued labels and logs out. ``--end-sessions`` ends any session left open.
+
+Labels are anonymous on the page (decision 030): ``/api/labels`` never names who
+gave a label, only whether it is the caller's own (``mine``); the only per-person
+figures are counts (``/api/progress``). Names stay in the database, its backups
+and exports, which only the owner sees.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import mimetypes
+import re
 import secrets
 import signal
 import threading
+import time
 import webbrowser
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,6 +47,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from eyespy_spermatogenesis.staging.annotate.hosting import guard_local_server
 from eyespy_spermatogenesis.staging.annotate.store import (
     MODES,
     PAPER,
@@ -37,7 +58,65 @@ from eyespy_spermatogenesis.staging.annotate.store import (
 )
 
 STATIC = resources.files("eyespy_spermatogenesis.staging.annotate") / "static"
-VERSION = "0.1"
+VERSION = "0.2"  # 0.2 (2026-11-17): hosted updates, guest mode, anonymous labels
+TOKEN_FILE = "token.txt"
+ONLINE_SECONDS = 90  # seen this recently = has the page open (pings every 20 s)
+NOTICE_FILE = "UPDATE_NOTICE.json"
+# Detail fields that name a person; never sent to the page (decision 030).
+NAMED_DETAIL = ("transcription_checked_by", "transcription_checked_at")
+NAMED_KEYS = {"annotator", "annotators", *NAMED_DETAIL}
+
+
+def strip_names(obj, names: re.Pattern | None = None):
+    """A copy of JSON data without any field that names a person; with
+    ``names``, those names inside text become "an annotator"."""
+    if isinstance(obj, dict):
+        return {k: strip_names(v, names) for k, v in obj.items() if k not in NAMED_KEYS}
+    if isinstance(obj, list):
+        return [strip_names(v, names) for v in obj]
+    if isinstance(obj, str) and names is not None:
+        return names.sub(lambda m: "an annotator" + (m.group(2) or ""), obj)
+    return obj
+
+
+def name_pattern(names) -> re.Pattern | None:
+    """Matches any of these names as a word, with an optional 's."""
+    names = sorted({n for n in names if n and len(n) >= 2}, key=len, reverse=True)
+    if not names:
+        return None
+    return re.compile(r"\b(" + "|".join(map(re.escape, names)) + r")('s)?\b")
+
+
+def when(stamp: str | None) -> float:
+    """Sort key for stored times, which mix UTC and local offsets."""
+    try:
+        return datetime.fromisoformat(stamp).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def build_id() -> str:
+    """Short hash of this package's files: changes whenever new code is deployed."""
+    root = Path(__file__).resolve().parent
+    h = hashlib.sha256()
+    for p in sorted(root.rglob("*")):
+        if p.is_file() and "__pycache__" not in p.parts:
+            h.update(str(p.relative_to(root)).encode())
+            h.update(p.read_bytes())
+    return h.hexdigest()[:12]
+
+
+def load_token(workspace: Path) -> str:
+    """The page token, made once per workspace and kept across restarts."""
+    path = workspace / TOKEN_FILE
+    if path.is_file():
+        token = path.read_text().strip()
+        if len(token) >= 32:
+            return token
+    token = secrets.token_urlsafe(24)
+    path.write_text(token + "\n")
+    path.chmod(0o600)
+    return token
 
 
 class App:
@@ -46,7 +125,9 @@ class App:
         if not (self.workspace / "labels.sqlite").exists():
             raise SystemExit(f"No labels.sqlite in {workspace}; run prepare first")
         self.store = Store(self.workspace / "labels.sqlite")
-        self.token = secrets.token_urlsafe(24)
+        self.token = load_token(self.workspace)
+        self.build = build_id()
+        self.seen: dict[int, tuple[str, str, float]] = {}  # session -> who, mode, when
         self.backup_seconds = backup_seconds
         self.stop = threading.Event()
         self.last_backup = None
@@ -68,6 +149,84 @@ class App:
                 print(f"[backup] FAILED: {exc}", flush=True)
 
     # ---- helpers -------------------------------------------------------
+    def caller(self, session_id) -> str | None:
+        """Name of an open session, or None (guests, ended or missing)."""
+        try:
+            return self.session(session_id)["annotator"] if session_id else None
+        except (PermissionError, ValueError, TypeError):
+            return None
+
+    def anonymous_labels(self, mode: str | None, session_id) -> list[dict]:
+        """Labels for the page: newest first, no names, ``mine`` for the caller's."""
+        me = self.caller(session_id)
+        rows = sorted(
+            self.store.labels(mode), key=lambda r: when(r["updated_at"]), reverse=True
+        )
+        out = []
+        for r in rows:
+            detail = strip_names(r["detail"])
+            if r["detail"].get("transcription_checked_by"):
+                detail["transcription_checked"] = True
+            out.append(
+                {
+                    "tubule_id": r["tubule_id"],
+                    "mode": r["mode"],
+                    "origin": r["origin"],
+                    "value": r["value"],
+                    "detail": detail,
+                    "mine": r["origin"] == "web"
+                    and me is not None
+                    and r["annotator"] == me,
+                }
+            )
+        return out
+
+    def progress(self, mode: str, run: str | None = None) -> list[dict]:
+        """Per-person label counts, in total and per stage/verdict: the only
+        per-person figures the page shows (decision 030)."""
+        sql = (
+            "SELECT l.annotator, l.origin, l.value, count(*) FROM labels l "
+            "JOIN tubules t ON t.tubule_id = l.tubule_id "
+            "WHERE l.mode = ? AND l.value IS NOT NULL"
+        )
+        args: list = [mode]
+        if mode == "staging":
+            sql += " AND t.recommended = 1"
+        if mode == "model_review":
+            sql += (
+                " AND l.tubule_id IN "
+                "(SELECT tubule_id FROM model_predictions WHERE run = ?)"
+            )
+            args.append(run)
+        with self.store.lock:
+            rows = self.store.db.execute(sql + " GROUP BY 1, 2, 3", args).fetchall()
+        people: dict[tuple, dict] = {}
+        for who, origin, value, n in rows:
+            p = people.setdefault(
+                (who, origin), {"name": who, "origin": origin, "n": 0, "values": {}}
+            )
+            p["n"] += n
+            p["values"][value] = n
+        return sorted(people.values(), key=lambda p: -p["n"])
+
+    def online(self) -> list[dict]:
+        now = time.time()
+        people = [
+            {"annotator": who, "mode": mode, "seconds_ago": int(now - t)}
+            for who, mode, t in list(self.seen.values())
+            if now - t < ONLINE_SECONDS
+        ]
+        return sorted(people, key=lambda o: o["seconds_ago"])
+
+    def notice(self) -> dict | None:
+        """The coming update, if the server's apply step announced one."""
+        try:
+            n = json.loads((self.workspace / NOTICE_FILE).read_text())
+            left = max(0, int(n["deadline"] - time.time()))
+            return {"phase": n["phase"], "seconds_left": left}
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
     def session(self, session_id):
         with self.store.lock:
             row = self.store.db.execute(
@@ -127,9 +286,14 @@ def make_handler(app: App):
             url = urlparse(self.path)
             path = unquote(url.path)
             try:
-                if path in ("/", "/index.html"):
+                if path in ("/", "/guide"):
+                    # Landing page: the illustrated how-to (decision 028).
+                    html = (STATIC / "guide.html").read_text(encoding="utf-8")
+                    return self.send(200, html.encode(), "text/html; charset=utf-8")
+                if path in ("/app", "/index.html"):
                     html = (STATIC / "index.html").read_text(encoding="utf-8")
                     html = html.replace("__TOKEN__", app.token)
+                    html = html.replace("__BUILD__", app.build)
                     return self.send(200, html.encode(), "text/html; charset=utf-8")
                 if path.startswith("/static/"):
                     name = path.removeprefix("/static/")
@@ -142,12 +306,38 @@ def make_handler(app: App):
                     return self.send(200, res.read_bytes(), ctype)
                 if path.startswith("/ws/"):
                     rel = Path(path.removeprefix("/ws/"))
-                    served = (("images",), ("paper",), ("review",))
+                    served = (("images",), ("paper",), ("review",), ("guide",))
                     if rel.parts[:1] not in served or any(
                         p in ("..", "") or p.startswith(".") for p in rel.parts
                     ):
                         return self.error_json(404, "Not found")
-                    return self.file(app.workspace / rel)
+                    f = app.workspace / rel
+                    if rel.suffix == ".json" and f.is_file():
+                        # e.g. review/eyespy/index.json lists training sources by name
+                        data = strip_names(
+                            json.loads(f.read_text(encoding="utf-8")),
+                            name_pattern(app.store.all_names()),
+                        )
+                        return self.json(data)
+                    return self.file(f, cache=rel.parts[0] != "guide")
+                if path == "/api/token":
+                    # Same-origin only (no CORS headers), like the token in /app.
+                    return self.json({"token": app.token})
+                if path == "/api/ping":
+                    sid = parse_qs(url.query).get("session", [""])[0]
+                    if sid.isdigit():
+                        try:
+                            s = app.session(sid)
+                            app.seen[s["id"]] = (s["annotator"], s["mode"], time.time())
+                        except PermissionError:
+                            pass
+                    return self.json({"build": app.build, "update": app.notice()})
+                if path == "/api/online":
+                    # For scripts/sync.sh on the server only: requests through the
+                    # Cloudflare tunnel carry Cf-Connecting-Ip (decision 030).
+                    if self.headers.get("Cf-Connecting-Ip"):
+                        return self.error_json(404, "Not found")
+                    return self.json(app.online())
                 if path == "/api/config":
                     return self.json(
                         {
@@ -183,23 +373,19 @@ def make_handler(app: App):
                         r["source_bounds"] = json.loads(r["source_bounds"])
                     return self.json(rows)
                 if path == "/api/labels":
-                    mode = parse_qs(url.query).get("mode", [None])[0]
-                    return self.json(app.store.labels(mode))
+                    q = parse_qs(url.query)
+                    mode = q.get("mode", [None])[0]
+                    sid = q.get("session", [""])[0]
+                    return self.json(app.anonymous_labels(mode, sid))
+                if path == "/api/progress":
+                    q = parse_qs(url.query)
+                    mode = q.get("mode", ["staging"])[0]
+                    if mode not in MODES:
+                        return self.error_json(400, "Unknown mode")
+                    return self.json(app.progress(mode, q.get("run", [None])[0]))
                 if path == "/api/predictions":
                     run = parse_qs(url.query).get("run", [None])[0]
                     return self.json(app.store.predictions(run))
-                if path == "/api/export.csv":
-                    who = parse_qs(url.query).get("who", ["manual"])[0]
-                    out = app.export(who, "manual")
-                    return self.send(
-                        200,
-                        out.read_bytes(),
-                        "text/csv; charset=utf-8",
-                        {
-                            "Content-Disposition": f'attachment; filename="{out.name}"',
-                            "X-Saved-Copy": str(out),
-                        },
-                    )
                 return self.error_json(404, "Not found")
             except Exception as exc:
                 return self.error_json(500, f"{type(exc).__name__}: {exc}")
@@ -216,6 +402,9 @@ def make_handler(app: App):
                 path = urlparse(self.path).path
                 if path == "/api/login":
                     name = clean_name(body.get("name", ""))
+                    if name.casefold() == "guest":
+                        # reserved for guest mode, whose labels are never saved
+                        return self.error_json(400, "Please use your own name")
                     mode = body.get("mode")
                     if mode not in MODES:
                         return self.error_json(400, "Choose a mode")
@@ -226,6 +415,7 @@ def make_handler(app: App):
                     count = app.store.session_count(s["id"])
                     out = app.export(s["annotator"], "logout")
                     app.store.end_session(s["id"], str(out))
+                    app.seen.pop(s["id"], None)
                     return self.json({"export": str(out), "labels_this_session": count})
                 if path == "/api/label":
                     s = app.session(body.get("session_id"))
@@ -286,12 +476,36 @@ def make_handler(app: App):
     return Handler
 
 
+def end_sessions(workspace: Path) -> int:
+    """End every open session (before an update), with one CSV export."""
+    store = Store(workspace / "labels.sqlite")
+    try:
+        with store.lock:
+            ids = [
+                row[0]
+                for row in store.db.execute(
+                    "SELECT id FROM sessions WHERE ended_at IS NULL"
+                )
+            ]
+        if ids:
+            stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+            out = store.write_csv(
+                workspace / "exports" / f"labels_{stamp}_before-update.csv"
+            )
+            for sid in ids:
+                store.end_session(sid, str(out))
+        return len(ids)
+    finally:
+        store.close()
+
+
 def serve(workspace: Path, port: int, open_browser: bool, backup_seconds=3600):
+    guard_local_server(workspace)
     app = App(workspace, backup_seconds)
     app.backup("startup")
     httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app))
     threading.Thread(target=app.backup_loop, daemon=True).start()
-    url = f"http://127.0.0.1:{port}/"
+    url = f"http://127.0.0.1:{port}/app"
     print(f"Annotation page: {url}  (Ctrl+C to stop)", flush=True)
 
     def shutdown(*_):
@@ -317,7 +531,16 @@ def main(argv=None):
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--no-browser", action="store_true")
     p.add_argument("--backup-minutes", type=int, default=60)
+    p.add_argument(
+        "--end-sessions",
+        action="store_true",
+        help="end every open session and exit (run before an update)",
+    )
     a = p.parse_args(argv)
+    if a.end_sessions:
+        n = end_sessions(a.workspace.resolve())
+        print(f"Ended {n} open session(s).", flush=True)
+        return
     serve(a.workspace, a.port, not a.no_browser, a.backup_minutes * 60)
 
 

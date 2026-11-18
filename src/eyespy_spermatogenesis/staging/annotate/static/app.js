@@ -26,7 +26,9 @@ const S = {
   queue: [], qi: -1, current: null, fixing: false, outline: true,
   view: { s: 1, x: 0, y: 0 }, outbox: [], lastSaved: null,
   run: null, preds: new Map(), paperStage: new Map(), blind: false,
+  draft: new Map(), // guest mode: tubule -> { value, run }, kept only in this tab
 };
+const guest = () => !!(S.session && S.session.guest);
 
 // ---------- API ----------
 async function api(path, body) {
@@ -48,6 +50,12 @@ function toast(msg, bad = false, ms = 4500) {
 
 function setSaveState() {
   const s = $("save-state");
+  if (guest()) {
+    s.className = "save-state bad";
+    s.textContent = `Guest: ${S.draft.size} label(s), NOT saved`;
+    $("guest-count").textContent = S.draft.size ? ` You have ${S.draft.size} unsaved label(s).` : "";
+    return;
+  }
   if (S.outbox.length) {
     s.className = "save-state bad";
     s.textContent = `⚠ ${S.outbox.length} label(s) not saved yet, retrying…`;
@@ -57,15 +65,32 @@ function setSaveState() {
   }
 }
 
-async function flushOutbox() {
-  while (S.outbox.length) {
+// One flush at a time: two loops would both send outbox[0] and the second
+// shift() would drop a label that was never sent.
+function flushOutbox() {
+  if (!S.flushing) S.flushing = flushLoop().finally(() => { S.flushing = null; });
+  return S.flushing;
+}
+
+async function flushLoop() {
+  while (S.outbox.length && S.session) {
     const job = S.outbox[0];
     try {
       await api(job.path, job.body);
       S.outbox.shift();
       S.lastSaved = new Date().toLocaleTimeString();
     } catch (e) {
-      if (e.status === 401) { S.outbox = []; toast("Your session ended. Please log in again.", true); showLogin(); break; }
+      // Session ended (an update logged everyone out): keep the labels; they
+      // are sent again once the same person logs back in (startSession).
+      if (e.status === 401) {
+        const who = S.session.name;
+        if (!S.updating) toast(`Your session ended. Log in again as ${who}: ${S.outbox.length} label(s) are kept and saved then.`, true, 12000);
+        showLogin();
+        break;
+      }
+      // Stale token (the page was restarted): fetch the current one and retry.
+      // Never drop the label; if that fails it stays queued and is retried.
+      if (e.status === 403) { if (await refreshToken()) continue; break; }
       if (e.status && e.status >= 400 && e.status < 500) { S.outbox.shift(); toast("Not saved: " + e.message, true); continue; }
       break; // network/server problem: keep and retry later
     }
@@ -73,9 +98,30 @@ async function flushOutbox() {
   setSaveState();
 }
 setInterval(flushOutbox, 5000);
+// Queued labels live only in this tab: warn before it is closed or reloaded.
+window.addEventListener("beforeunload", (ev) => { if (S.outbox.length) { ev.preventDefault(); ev.returnValue = ""; } });
+
+async function refreshToken() {
+  try {
+    const { token } = await api("/api/token");
+    if (!token || token === window.TOKEN) return false;
+    window.TOKEN = token;
+    return true;
+  } catch { return false; }
+}
 
 function send(path, body) {
-  S.outbox.push({ path, body });
+  if (guest()) {
+    // Guest mode: nothing goes to the server. Labels stay in this tab and are
+    // saved only if the guest chooses to, under a name, when logging out.
+    if (path === "/api/label") {
+      if (body.value === null) S.draft.delete(body.tubule_id);
+      else S.draft.set(body.tubule_id, { value: body.value, run: body.run });
+    }
+    setSaveState();
+    return;
+  }
+  S.outbox.push({ path, body, who: S.session.name });
   setSaveState();
   flushOutbox();
 }
@@ -83,7 +129,8 @@ function send(path, body) {
 // ---------- data ----------
 async function loadLabels() {
   if (!S.session) return;
-  const rows = await api("/api/labels?mode=" + S.session.mode);
+  const sid = guest() ? "" : "&session=" + encodeURIComponent(S.session.id);
+  const rows = await api("/api/labels?mode=" + S.session.mode + sid); // anonymous: only "mine" is marked
   // keep optimistic local values for jobs still in the outbox
   const pending = new Set(S.outbox.map((j) => j.body.tubule_id));
   const next = new Map();
@@ -94,26 +141,117 @@ async function loadLabels() {
   }
   for (const tid of pending) next.set(tid, S.labels.get(tid) || []);
   S.labels = next;
+  if (guest()) for (const [tid, d] of S.draft) localSet(tid, "web", d.value, d.run ? { run: d.run } : undefined);
 }
+// Presence, new code and coming updates (decision 028). Pings tell the server
+// who has the page open; a different build means new code is live. Before an
+// update the server sends a countdown ("warning"), then "closing": this page
+// then saves its queued labels, logs out and reloads once the update is in.
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+async function ping() {
+  let next = 20000;
+  try {
+    const q = S.session && !guest() ? "?session=" + encodeURIComponent(S.session.id) : "";
+    const { build, update } = await api("/api/ping" + q);
+    const changed = build && window.BUILD && build !== window.BUILD;
+    if (update) next = 5000;
+    if (S.updating) {
+      // Notice gone = the apply step finished (new code, or old code again
+      // if the update failed); either way this tab was logged out.
+      if (!update) return updateDone();
+      next = 5000;
+    } else if (update && (update.phase === "closing" || update.seconds_left <= 0)) {
+      closeForUpdate();
+    } else if (update) {
+      showUpdateWarning(update.seconds_left);
+    } else {
+      $("update-bar").hidden = true;
+      if (changed) $("update-note").hidden = false;
+    }
+  } catch { if (S.updating) next = 5000; /* offline: the save indicator says so */ }
+  setTimeout(ping, next);
+}
+setTimeout(ping, 20000);
+
+function showUpdateWarning(seconds) {
+  const m = Math.floor(seconds / 60), sec = seconds % 60;
+  const left = m ? `${m} min${sec >= 30 ? " 30 s" : ""}` : `${Math.max(sec, 5)} s`;
+  const at = new Date(Date.now() + seconds * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  $("update-bar").textContent = `The page is being updated at ${at} (in about ${left}). You will be logged out then. Your labels are saved as you go; log back in after a few minutes.`;
+  $("update-bar").hidden = false;
+}
+
+function updateOverlay(title, text) {
+  $("update-overlay-title").textContent = title;
+  $("update-overlay-text").textContent = text;
+  $("update-overlay").hidden = false;
+}
+
+async function closeForUpdate() {
+  if (S.updating) return;
+  S.updating = true;
+  $("update-bar").hidden = true;
+  updateOverlay("Updating the page", "Saving your labels and logging you out…");
+  for (let i = 0; i < 8 && S.outbox.length && S.session; i++) {
+    await flushOutbox();
+    if (S.outbox.length) await sleep(4000);
+  }
+  const guestLabels = guest() ? S.draft.size : 0;
+  if (guest()) { S.draft = new Map(); S.session = null; }
+  if (S.session && !S.outbox.length) {
+    try { await api("/api/logout", { session_id: S.session.id }); } catch { /* the server ends it */ }
+    S.session = null; store.del("session");
+  }
+  if (guestLabels) {
+    updateOverlay("Updating the page", `You were browsing as a guest, so your ${guestLabels} label(s) were not saved. This page reloads by itself when the update is done.`);
+    return;
+  }
+  if (S.outbox.length) {
+    updateOverlay("Updating the page", `${S.outbox.length} label(s) could not be saved yet. Keep this tab open: when the update is done you will be asked to log in again, and they are saved then.`);
+  } else {
+    updateOverlay("Updating the page", "All your labels are saved and you are logged out. This page reloads by itself when the update is done, usually within a few minutes.");
+  }
+}
+
+function updateDone() {
+  if (!S.outbox.length) { store.set("updated", true); location.reload(); return; }
+  // Labels still queued: a reload would lose them. Log in again to save them.
+  S.updating = false;
+  $("update-overlay").hidden = true;
+  showLogin();
+  toast(`The page was updated. Log in again as ${S.outbox[0].who} to save ${S.outbox.length} label(s).`, true, 15000);
+  setTimeout(ping, 5000);
+}
+
+// While the page closes for an update nothing new may be labelled.
+window.addEventListener("keydown", (e) => { if (S.updating) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+$("update-reload").addEventListener("click", () => {
+  if (S.outbox.length) { toast(`Waiting for ${S.outbox.length} label(s) to save first.`, true); flushOutbox(); return; }
+  location.reload();
+});
+
 setInterval(async () => {
   try { await loadLabels(); if (!$("view-annotate").hidden) { renderSide(); if (seg()) repaintSeg(); } } catch { /* retry later */ }
 }, 20000);
 
 const labelsOf = (tid) => S.labels.get(tid) || [];
-const mineOf = (tid) => labelsOf(tid).find((l) => l.origin === "web" && l.annotator === S.session.name);
+// Labels are anonymous (decision 030): the server marks only the caller's own ("mine").
+const mineOf = (tid) => labelsOf(tid).find((l) => l.origin === "web" && l.mine);
 const paperOf = (tid) => labelsOf(tid).find((l) => l.origin === "paper");
-const othersOf = (tid) => labelsOf(tid).filter((l) => !(l.origin === "web" && l.annotator === S.session.name));
+const othersOf = (tid) => labelsOf(tid).filter((l) => !(l.origin === "web" && l.mine));
 const staging = () => S.session && S.session.mode === "staging";
 const review = () => S.session && S.session.mode === "model_review";
 const seg = () => S.session && S.session.mode === "segmentation";
 const choices = () => (staging() || review() ? S.cfg.stages : S.cfg.verdicts);
 const nameOf = (v) => (choices().find((c) => c[0] === v) || [v, v ?? "—"])[1];
 
-function localSet(tid, origin, annotator, value, detail) {
-  const arr = labelsOf(tid).filter((l) => !(l.origin === origin && l.annotator === annotator));
+// Set this person's own web label, or (origin "paper") the tubule's paper label.
+function localSet(tid, origin, value, detail) {
+  const same = (l) => l.origin === origin && (origin === "paper" || l.mine);
+  const arr = labelsOf(tid).filter((l) => !same(l));
   if (value !== undefined) {
-    const prev = labelsOf(tid).find((l) => l.origin === origin && l.annotator === annotator);
-    arr.push({ tubule_id: tid, mode: S.session.mode, annotator, origin, value,
+    const prev = labelsOf(tid).find(same);
+    arr.unshift({ tubule_id: tid, mode: S.session.mode, origin, value, mine: origin === "web",
       detail: { ...(prev ? prev.detail : {}), ...(detail || {}) } });
   }
   S.labels.set(tid, arr);
@@ -257,24 +395,24 @@ function renderSide() {
   else if (!others.length) $("others").append(el("div", { class: "none", text: "No one else has labelled this yet." }));
   for (const o of others) {
     const cls = !mine ? "other" : o.value === mine.value ? "other agree" : "other disagree";
-    $("others").append(el("div", { class: cls }, el("span", { text: o.annotator }), el("b", { text: nameOf(o.value) })));
+    $("others").append(el("div", { class: cls }, el("span", { text: review() ? "Another reviewer" : "Another annotator" }), el("b", { text: nameOf(o.value) })));
   }
   if (review()) renderReview(tid, mine);
   const p = staging() && paperOf(tid);
   if (p) {
     $("paper").hidden = false;
     $("paper").classList.toggle("needs-check", !!p.detail.needs_check);
-    $("paper-who").textContent = "· " + p.annotator;
+    $("paper-who").textContent = "";
     const snips = $("paper-snips");
     snips.innerHTML = "";
     for (const sn of p.detail.snippets || []) snips.append(el("img", { src: "/ws/" + sn, alt: "Handwritten mark" }));
     const reads = (p.detail.stage_reads || []).map((r) => (r ? nameOf(r) : "?"));
     $("paper-read").textContent = p.value ? nameOf(p.value) : reads.length > 1 ? reads.join(" + ") : "Unreadable";
     const notes = [];
-    if (p.detail.transcription_checked_by) notes.push(`Reading checked by ${p.detail.transcription_checked_by}`);
+    if (p.detail.transcription_checked) notes.push("Reading checked by a person");
     const reader = /^Claude/.test(p.detail.transcribed_by || "") ? "Claude's reading of the photo" : "Machine reading";
-    if (!p.detail.transcription_checked_by && p.detail.needs_check) notes.push(reader + ", please check: " + (p.detail.read_flags || []).map(flagText).join("; "));
-    else if (!p.detail.transcription_checked_by) notes.push(reader + " of the handwriting (not yet checked by a person)");
+    if (!p.detail.transcription_checked && p.detail.needs_check) notes.push(reader + ", please check: " + (p.detail.read_flags || []).map(flagText).join("; "));
+    else if (!p.detail.transcription_checked) notes.push(reader + " of the handwriting (not yet checked by a person)");
     $("paper-flags").textContent = notes.join(" · ");
     $("paper-flags").style.color = p.detail.needs_check ? "" : "var(--muted)";
     $("paper-ok").disabled = !p.value;
@@ -336,7 +474,7 @@ function choose(value) {
   const tid = S.current;
   if (!tid) return;
   if (S.fixing) return fixTranscription(value);
-  localSet(tid, "web", S.session.name, value, review() ? { run: S.run } : undefined);
+  localSet(tid, "web", value, review() ? { run: S.run } : undefined);
   send("/api/label", { session_id: S.session.id, tubule_id: tid, value, ...(review() ? { run: S.run } : {}) });
   renderSide();
   if (!(review() && S.blind)) setTimeout(() => advance(1), review() ? 600 : 140);
@@ -345,7 +483,7 @@ function choose(value) {
 function clearMine() {
   const tid = S.current;
   if (!tid || !mineOf(tid)) return;
-  localSet(tid, "web", S.session.name, undefined);
+  localSet(tid, "web", undefined);
   send("/api/label", { session_id: S.session.id, tubule_id: tid, value: null });
   renderSide();
 }
@@ -359,8 +497,9 @@ function confirmTranscription() {
 function fixTranscription(value) {
   const tid = S.current, p = paperOf(tid);
   S.fixing = false;
+  if (guest()) { renderSide(); toast("Correcting paper readings needs an annotator login, not guest mode.", true); return; }
   if (!p || value === "cant_stage") { renderSide(); return; }
-  localSet(tid, "paper", p.annotator, value, { transcription_checked_by: S.session.name, needs_check: false });
+  localSet(tid, "paper", value, { transcription_checked: true, needs_check: false });
   send("/api/transcription", { session_id: S.session.id, tubule_id: tid, value });
   renderSide();
   toast(`Paper reading saved as ${nameOf(value)}. Now give your own stage.`, false, 2500);
@@ -425,6 +564,9 @@ function setView(name) {
 
 function showLogin() {
   S.session = null; store.del("session");
+  S.draft = new Map();
+  $("guest-banner").hidden = true;
+  $("guest-save").hidden = true;
   $("nav").hidden = true; $("who").hidden = true;
   $("recent-names").innerHTML = "";
   for (const n of (S.cfg.annotators || []).filter((n) => n !== "paper-import").slice(0, 12)) {
@@ -435,10 +577,25 @@ function showLogin() {
 }
 
 async function startSession(sess) {
-  S.session = sess; store.set("session", sess);
+  S.session = sess;
+  if (sess.guest) store.del("session"); else store.set("session", sess); // a reload ends guest mode
+  S.draft = new Map();
+  $("guest-banner").hidden = !sess.guest;
+  setSaveState();
+  if (S.outbox.length) {
+    // Labels kept from an ended session (an update): send them under the new
+    // session if it is the same person; another name must not take them over.
+    const mine = S.outbox.filter((j) => j.who === sess.name);
+    const lost = S.outbox.length - mine.length;
+    for (const j of mine) j.body.session_id = sess.id;
+    S.outbox = mine;
+    if (lost) toast(`${lost} unsaved label(s) by someone else were dropped.`, true, 12000);
+    flushOutbox();
+  }
+  if (!sess.guest) api("/api/ping?session=" + encodeURIComponent(sess.id)).catch(() => {}); // online at once
   $("nav").hidden = false; $("who").hidden = false;
   $("who").innerHTML = "";
-  $("who").append(el("span", { text: sess.name }), el("small", { text: staging() ? "Staging mode" : review() ? "Model review" : "Segmentation review" }));
+  $("who").append(el("span", { text: sess.guest ? "Guest (labels not saved)" : sess.name }), el("small", { text: staging() ? "Staging mode" : review() ? "Model review" : "Segmentation review" }));
   $("nav-overview").hidden = !review();
   SEG.single = false;
   $("seg-wrap").hidden = !seg();
@@ -477,12 +634,62 @@ async function login() {
   } catch (e) { $("login-error").textContent = e.message; $("login-error").hidden = false; }
 }
 
+const GUEST_NAME = "Guest"; // reserved: the server refuses it as an annotator name
+async function loginGuest() {
+  const mode = document.querySelector("input[name=mode]:checked").value;
+  $("login-error").hidden = true;
+  await startSession({ id: null, name: GUEST_NAME, mode, guest: true });
+}
+
+// Guest log out: offer to save the tab's labels under a name; empty = discard.
+function openGuestSave() {
+  $("guest-save-count").textContent = String(S.draft.size);
+  $("guest-save-error").hidden = true;
+  $("guest-name").value = "";
+  $("guest-names").innerHTML = "";
+  for (const n of (S.cfg.annotators || []).filter((n) => n !== "paper-import").slice(0, 12)) {
+    $("guest-names").append(el("button", { class: "chip", text: n, onclick: () => { $("guest-name").value = n; } }));
+  }
+  $("guest-save").hidden = false;
+  $("guest-name").focus();
+}
+
+async function saveGuestLabels() {
+  const name = $("guest-name").value.trim();
+  if (!name) return discardGuest();
+  const err = (m) => { $("guest-save-error").textContent = m; $("guest-save-error").hidden = false; };
+  $("guest-save-ok").disabled = true;
+  try {
+    const r = await api("/api/login", { name, mode: S.session.mode });
+    let saved = 0;
+    for (const [tid, d] of [...S.draft]) {
+      await api("/api/label", { session_id: r.session_id, tubule_id: tid, value: d.value, ...(d.run ? { run: d.run } : {}) });
+      S.draft.delete(tid); saved++;
+    }
+    await api("/api/logout", { session_id: r.session_id });
+    toast(`Saved ${saved} label(s) under ${r.name}. Logged out.`, false, 9000);
+    S.cfg = await api("/api/config");
+    $("name").value = "";
+    showLogin();
+  } catch (e) {
+    err(`Not all labels were saved (${e.message}). ${S.draft.size} left; try again.`);
+  } finally { $("guest-save-ok").disabled = false; }
+}
+
+function discardGuest() {
+  const n = S.draft.size;
+  $("name").value = "";
+  showLogin();
+  if (n) toast(`Logged out. Your ${n} guest label(s) were not saved.`, false, 7000);
+}
+
 async function logout() {
+  if (guest()) { if (S.draft.size) openGuestSave(); else discardGuest(); return; }
   await flushOutbox();
   if (S.outbox.length && !confirm("Some labels are not saved yet. Log out anyway?")) return;
   try {
     const r = await api("/api/logout", { session_id: S.session.id });
-    toast(`Logged out. ${r.labels_this_session} label(s) this session. CSV saved: ${r.export}`, false, 9000);
+    toast(`Logged out. ${r.labels_this_session} label(s) this session. Everything is saved.`, false, 9000);
   } catch (e) { toast("Logout export failed: " + e.message, true, 9000); }
   S.cfg = await api("/api/config");
   $("name").value = "";
@@ -490,7 +697,24 @@ async function logout() {
 }
 
 // ---------- progress ----------
+// The only per-person figure on the page (decision 030): how many labels each
+// person gave. Who gave which label is never shown.
+async function loadPeople() {
+  const run = review() && S.run ? "&run=" + encodeURIComponent(S.run) : "";
+  return api("/api/progress?mode=" + S.session.mode + run);
+}
+
+// Labels per person: a plain count table (no times, no links; decision 030).
+function renderPeople(people) {
+  const tp = $("by-person");
+  tp.innerHTML = "";
+  tp.append(el("tr", {}, el("th", { text: review() ? "Reviewer" : "Annotator" }), el("th", { text: review() ? "Answers" : "Labels" })));
+  if (!people.length) tp.append(el("tr", {}, el("td", { colspan: "2", text: "No labels yet." })));
+  for (const p of people) tp.append(el("tr", {}, el("td", { text: p.name + (p.origin === "paper" ? " (paper)" : "") }), el("td", { text: String(p.n) })));
+}
+
 function renderProgress() {
+  loadPeople().then(renderPeople).catch((e) => toast("Progress: " + e.message, true));
   if (review()) return renderReviewProgress();
   $("stage-panel").hidden = false;
   $("by-source").closest(".panel").querySelector("h2").textContent = "By section";
@@ -503,7 +727,7 @@ function renderProgress() {
   const web = (tid) => labelsOf(tid).filter((l) => l.origin === "web" && l.value);
   const anyStage = (tid) => labelsOf(tid).some((l) => l.value);
   const n = pool.length, done1 = pool.filter((t) => anyStage(t.tubule_id)).length;
-  const done2 = pool.filter((t) => new Set(web(t.tubule_id).map((l) => l.annotator)).size >= 2).length;
+  const done2 = pool.filter((t) => web(t.tubule_id).length >= 2).length; // one web label per person
   const papers = pool.filter((t) => paperOf(t.tubule_id)).length;
   const check = pool.filter((t) => { const p = paperOf(t.tubule_id); return p && p.detail.needs_check; }).length;
   const mine = pool.filter((t) => mineOf(t.tubule_id)).length;
@@ -520,7 +744,7 @@ function renderProgress() {
   for (const t of pool) {
     if (!bySrc.has(t.source_folder)) bySrc.set(t.source_folder, { name: t.source_name, n: 0, any: 0, two: 0, paper: 0, check: 0, mine: 0 });
     const r = bySrc.get(t.source_folder), p = paperOf(t.tubule_id);
-    r.n++; r.any += anyStage(t.tubule_id); r.two += new Set(web(t.tubule_id).map((l) => l.annotator)).size >= 2;
+    r.n++; r.any += anyStage(t.tubule_id); r.two += web(t.tubule_id).length >= 2;
     r.paper += !!p; r.check += !!(p && p.detail.needs_check); r.mine += !!mineOf(t.tubule_id);
   }
   const tb = $("by-source");
@@ -530,12 +754,18 @@ function renderProgress() {
   for (const [folder, r] of bySrc) {
     const cells = st ? [r.name, r.n, r.any, r.two, r.paper, r.check, r.mine] : [r.name, r.n, r.any, r.two, r.mine];
     const tr = el("tr", st ? { class: "clickable", title: "Open the section map" } : {}, ...cells.map((c) => el("td", { text: String(c) })));
-    if (st) tr.addEventListener("click", () => openSectionMap(r.name, folder).catch((e) => toast("Section map: " + e.message, true)));
+    if (st) {
+      tr.addEventListener("click", () => openSectionMap(r.name, folder).catch((e) => toast("Section map: " + e.message, true)));
+      let dwell;
+      tr.addEventListener("mouseenter", () => { dwell = setTimeout(() => prepareSection(r.name), 200); });
+      tr.addEventListener("mouseleave", () => clearTimeout(dwell));
+    }
     tb.append(tr);
   }
 
   const bars = $("stage-bars");
   bars.innerHTML = "";
+  if (st) setTimeout(prefetchSections, 1500); // after the page itself has loaded
   $("stage-panel").querySelector("h2").textContent = st ? "Labels per stage" : "Labels per verdict";
   const counts = new Map(choices().map((c) => [c[0], { web: 0, paper: 0 }]));
   for (const t of pool) for (const l of labelsOf(t.tubule_id)) if (l.value && counts.has(l.value)) counts.get(l.value)[l.origin === "paper" ? "paper" : "web"]++;
@@ -547,20 +777,6 @@ function renderProgress() {
       el("div", { class: "bar paper", style: `width:${(100 * c.paper) / max}%` }));
     bars.append(el("div", { class: "bar-row" }, el("span", { text: nameOf(v).replace("Can't stage / bad crop", "Can't stage") }), track, el("span", { text: String(c.web + c.paper) })));
   }
-
-  const people = new Map();
-  for (const t of pool) for (const l of labelsOf(t.tubule_id)) {
-    const key = l.annotator + (l.origin === "paper" ? " (paper)" : "");
-    const r = people.get(key) || { n: 0, last: "" };
-    r.n += l.value ? 1 : 0; r.last = l.updated_at > r.last ? l.updated_at : r.last;
-    people.set(key, r);
-  }
-  const tp = $("by-person");
-  tp.innerHTML = "";
-  tp.append(el("tr", {}, el("th", { text: "Annotator" }), el("th", { text: "Labels" }), el("th", { text: "Last label" })));
-  for (const [k, r] of [...people].sort((a, b) => b[1].n - a[1].n)) {
-    tp.append(el("tr", {}, el("td", { text: k }), el("td", { text: String(r.n) }), el("td", { text: (r.last || "").replace("T", " ").slice(0, 16) })));
-  }
   $("export-note").textContent = S.cfg.last_backup ? `Last automatic backup: ${S.cfg.last_backup.replace("T", " ").slice(0, 16)}` : "";
 }
 
@@ -570,40 +786,32 @@ function renderReviewProgress() {
   $("progress-title").textContent = "Model review";
   $("progress-lede").textContent = `Review run ${S.run || "—"}. Scores compare each model and the paper stage with the reviewer's own stage ("can't stage" answers are left out).`;
   const ids = [...S.preds.keys()];
-  const answers = new Map(); // annotator -> [{tid, value}]
-  for (const tid of ids) for (const l of labelsOf(tid)) if (l.origin === "web" && l.value) {
-    if (!answers.has(l.annotator)) answers.set(l.annotator, []);
-    answers.get(l.annotator).push({ tid, value: l.value });
-  }
+  // All reviewers' answers pooled: scores are never shown per person (decision 030).
+  const answers = [];
+  for (const tid of ids) for (const l of labelsOf(tid)) if (l.origin === "web" && l.value) answers.push({ tid, value: l.value });
   const m = $("metrics");
   m.innerHTML = "";
   const card = (num, lab) => m.append(el("div", { class: "metric-card" }, el("strong", { text: String(num) }), el("span", { text: lab })));
   card(ids.length, "tubules in this review");
   card(ids.filter((t) => mineOf(t)).length, "answered by you");
-  card(answers.size, "reviewers");
-  // scores per reviewer and model
+  card(answers.length, "answers from all reviewers");
   const models = [...new Set(ids.flatMap((t) => ["A", "B"].map((s) => (S.preds.get(t)[s] || {}).model)).filter(Boolean))].sort();
   const tb = $("by-source");
   tb.innerHTML = "";
-  tb.closest(".panel").querySelector("h2").textContent = "Scores against each reviewer";
-  tb.append(el("tr", {}, ...["Reviewer", "Answered", "Compared with", "Exact", "Within one stage"].map((h) => el("th", { text: h }))));
-  for (const [who, list] of answers) {
-    const staged = list.filter((x) => x.value !== "cant_stage");
-    const rowsFor = (name, get) => {
-      const pairs = staged.map((x) => [get(x.tid), x.value]).filter(([p]) => p);
-      const ex = pairs.filter(([p, v]) => p === v).length, w1 = pairs.filter(([p, v]) => cyc(p, v) <= 1).length;
-      const pct = (n) => (pairs.length ? `${Math.round((100 * n) / pairs.length)}% (${n}/${pairs.length})` : "—");
-      tb.append(el("tr", {}, ...[who, String(list.length), name, pct(ex), pct(w1)].map((c) => el("td", { text: c }))));
-    };
+  tb.closest(".panel").querySelector("h2").textContent = "Scores against all reviewers' answers";
+  tb.append(el("tr", {}, ...["Compared with", "Answers compared", "Exact", "Within one stage"].map((h) => el("th", { text: h }))));
+  const staged = answers.filter((x) => x.value !== "cant_stage");
+  const rowsFor = (name, get) => {
+    const pairs = staged.map((x) => [get(x.tid), x.value]).filter(([p]) => p);
+    const ex = pairs.filter(([p, v]) => p === v).length, w1 = pairs.filter(([p, v]) => cyc(p, v) <= 1).length;
+    const pct = (n) => (pairs.length ? `${Math.round((100 * n) / pairs.length)}% (${n}/${pairs.length})` : "—");
+    tb.append(el("tr", {}, ...[name, String(pairs.length), pct(ex), pct(w1)].map((c) => el("td", { text: c }))));
+  };
+  if (answers.length) {
     for (const model of models) rowsFor(model, (t) => { const p = S.preds.get(t); return ["A", "B"].map((s) => p[s]).find((x) => x && x.model === model)?.value; });
-    rowsFor("Paper stage (Yeongseok)", (t) => S.paperStage.get(t));
-  }
-  if (!answers.size) tb.append(el("tr", {}, el("td", { colspan: "5", text: "No answers yet." })));
+    rowsFor("Paper stage", (t) => S.paperStage.get(t));
+  } else tb.append(el("tr", {}, el("td", { colspan: "4", text: "No answers yet." })));
   $("stage-panel").hidden = true;
-  const tp = $("by-person");
-  tp.innerHTML = "";
-  tp.append(el("tr", {}, el("th", { text: "Reviewer" }), el("th", { text: "Answers" })));
-  for (const [who, list] of answers) tp.append(el("tr", {}, el("td", { text: who }), el("td", { text: String(list.length) })));
   $("export-note").textContent = S.cfg.last_backup ? `Last automatic backup: ${S.cfg.last_backup.replace("T", " ").slice(0, 16)}` : "";
 }
 
@@ -652,7 +860,7 @@ async function renderOverview() {
     const s = r.sections.find((x) => x.section === sec);
     if (!s) continue;
     const cards = el("div", { class: "ov-cards", style: `--cols:${ncols}` });
-    cards.append(panelCard("Paper stage (Yeongseok)", "", `/ws/review/${r.run}/${s.paper}`, "Reference: unchecked transcription of the hand-staged sheet",
+    cards.append(panelCard("Paper stage", "", `/ws/review/${r.run}/${s.paper}`, "Reference: unchecked transcription of the hand-staged sheet",
       sec, () => methodCtx(runs, sec, r.run, null)));
     for (const [name, m] of Object.entries(s.models)) {
       cards.append(panelCard(name, "", `/ws/review/${r.run}/${show === "agree" ? m.agree : m.stage}`,
@@ -750,7 +958,7 @@ async function renderEyeSpy() {
   t.append(el("tr", {}, ...["Model", "Training labels", "Smoothing", "Class weighting", "Exact", "Balanced", "Within one",
     "Paper sections exact", "Paper sections balanced", "Δ exact vs parent", "Δ exact vs previous version"].map((h) => el("th", { text: h }))));
   for (const m of models) {
-    const src = m.training.sources.map((x) => `${x.annotator} ${x.origin} (${x.n_evaluated})`).join(" + ");
+    const src = m.training.sources.map((x) => `${x.origin === "paper" ? "paper" : "on screen"} (${x.n_evaluated})`).join(" + ");
     const nameCell = el("td", {}, m.name, el("span", { class: "es-role " + (ROLE[m.role] || ""), text: ROLE[m.role] || m.role }));
     const prev = m.vs_previous_version;
     t.append(el("tr", {}, nameCell, ...[src, smoothingText(m.settings.smoothing), m.settings.class_weighting ? "on" : "off",
@@ -842,7 +1050,7 @@ function segSelect(i, scroll = true) {
 function segSet(value) {
   const tid = S.current;
   if (!tid || S.qi < 0) return;
-  localSet(tid, "web", S.session.name, value === null ? undefined : value);
+  localSet(tid, "web", value === null ? undefined : value);
   send("/api/label", { session_id: S.session.id, tubule_id: tid, value });
   const card = $("seg-grid").querySelector(`.tg-card[data-i="${S.qi}"]`);
   if (card) paintSeg(card);
@@ -896,8 +1104,33 @@ function stageRGB(k) {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 const CANT_RGB = [150, 150, 150], FLAG_RGB = [70, 70, 70];
-const SM = { section: null, sourceName: null, map: null, ov: null };
+const SM = { section: null, sourceName: null, map: null, ov: null, overlay: true };
 const OVS = new Map();
+// Decoded pictures are large (about 12 MB each): keep only the latest few.
+function keepRecent(cache, n = 6) {
+  while (cache.size > n) cache.delete(cache.keys().next().value);
+}
+
+// Section maps open fast: after sign-in every section's pictures are fetched
+// once in the background (the browser keeps them a day), and resting the
+// mouse on a row in "By section" prepares that section.
+let sectionsFetched = false;
+async function prefetchSections() {
+  if (sectionsFetched) return;
+  sectionsFetched = true;
+  const names = [...new Set(S.tubules.map((t) => t.source_name.replace(/\.tiff?$/i, "").replace(/^#/, "")))];
+  for (const n of names) {
+    for (const u of [`/ws/review/sections/${encodeURIComponent(n)}.jpg`, `/ws/review/maps/${encodeURIComponent(n)}.png`]) {
+      try { const r = await fetch(u); if (r.ok) await r.arrayBuffer(); } catch { /* offline: loaded on open instead */ }
+    }
+  }
+}
+function prepareSection(sourceName) {
+  const section = sourceName.replace(/\.tiff?$/i, "");
+  hitMap(section).catch(() => {});
+  overviewPixels(section).catch(() => {});
+}
+
 function overviewPixels(section) {
   if (!OVS.has(section)) {
     OVS.set(section, (async () => {
@@ -911,6 +1144,7 @@ function overviewPixels(section) {
       return { w: bmp.width, h: bmp.height, d: g.getImageData(0, 0, bmp.width, bmp.height).data };
     })());
     OVS.get(section).catch(() => OVS.delete(section));
+    keepRecent(OVS);
   }
   return OVS.get(section);
 }
@@ -918,18 +1152,24 @@ function smLabel(tid) {
   const mine = mineOf(tid);
   if ($("sm-who").value === "mine") return mine && mine.value ? { value: mine.value, who: "you" } : null;
   if (mine && mine.value) return { value: mine.value, who: "you" };
-  const web = labelsOf(tid).filter((l) => l.origin === "web" && l.value).sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
-  if (web.length) return { value: web[0].value, who: web[0].annotator };
+  const web = labelsOf(tid).filter((l) => l.origin === "web" && l.value); // newest first, from the server
+  if (web.length) return { value: web[0].value, who: "another annotator" };
   const p = paperOf(tid);
-  return p && p.value ? { value: p.value, who: p.annotator + ", paper" } : null;
+  return p && p.value ? { value: p.value, who: "paper" } : null;
 }
 async function openSectionMap(sourceName, folder) {
   const section = sourceName.replace(/\.tiff?$/i, "");
-  Object.assign(SM, { section, sourceName, folder });
+  // Clear the previous section at once, so it never shows while this one loads.
+  const req = (SM.req || 0) + 1;
+  Object.assign(SM, { section, sourceName, folder, map: null, ov: null, req });
+  const cv = $("sm-canvas");
+  cv.width = 0; cv.height = 0;
   $("sm-title").textContent = section;
   $("sm-summary").textContent = "Loading…";
+  $("sm-legend").style.visibility = "hidden";
   $("sm").hidden = false;
   const [map, ov] = await Promise.all([hitMap(section), overviewPixels(section)]);
+  if (SM.req !== req) return; // another section was opened meanwhile
   if (map.w !== ov.w || map.h !== ov.h) throw new Error("overview and click map sizes differ");
   SM.map = map; SM.ov = ov;
   drawSectionMap();
@@ -937,6 +1177,20 @@ async function openSectionMap(sourceName, folder) {
 }
 function drawSectionMap() {
   const { w, h, d: md } = SM.map, od = SM.ov.d;
+  const cv0 = $("sm-canvas");
+  $("sm-legend").style.visibility = SM.overlay ? "" : "hidden"; // keeps its space: same picture size
+  if (!SM.overlay) {
+    // The section alone: the overview image in full colour, nothing drawn on it.
+    cv0.width = w; cv0.height = h;
+    const g0 = cv0.getContext("2d"), img0 = g0.createImageData(w, h);
+    img0.data.set(od);
+    g0.putImageData(img0, 0, 0);
+    const wrap0 = cv0.parentElement;
+    cv0.style.height = Math.min(wrap0.clientHeight, (wrap0.clientWidth * h) / w) + "px";
+    cv0.style.width = "auto";
+    $("sm-summary").textContent = "Overlay off: the section as scanned. Press O or tick Overlay to show tubules and stages again.";
+    return;
+  }
   const tubs = S.tubules.filter((t) => t.source_name === SM.sourceName);
   const maxLab = Math.max(0, ...tubs.map((t) => t.label));
   const col = new Int16Array((maxLab + 1) * 3).fill(-1), text = new Map();
@@ -1013,6 +1267,8 @@ function bindSectionMap() {
   $("sm-close").addEventListener("click", () => { $("sm").hidden = true; });
   $("sm").addEventListener("click", (e) => { if (e.target === $("sm")) $("sm").hidden = true; });
   $("sm-who").addEventListener("change", () => SM.map && drawSectionMap());
+  const setOverlay = (on) => { SM.overlay = on; $("sm-overlay").checked = on; $("sm-who").disabled = !on; if (SM.map) drawSectionMap(); };
+  $("sm-overlay").addEventListener("change", () => setOverlay($("sm-overlay").checked));
   const cv = $("sm-canvas");
   cv.addEventListener("click", async (e) => {
     const t = await smTubuleAt(e);
@@ -1032,7 +1288,11 @@ function bindSectionMap() {
         : `#${t.label} · ${lab ? nameOf(lab.value) + " (" + lab.who + ")" : "no stage yet"} · click to label`;
     } finally { busy = false; }
   });
-  document.addEventListener("keydown", (e) => { if (!$("sm").hidden && e.key === "Escape") { e.preventDefault(); $("sm").hidden = true; } });
+  document.addEventListener("keydown", (e) => {
+    if ($("sm").hidden) return;
+    if (e.key === "Escape") { e.preventDefault(); $("sm").hidden = true; }
+    if (e.key.toLowerCase() === "o" && e.target.tagName !== "INPUT" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); setOverlay(!SM.overlay); }
+  });
 }
 
 // ---------- click a tubule on a panel: grid of that stage, then one tubule (owner, 2026-11-13) ----------
@@ -1061,6 +1321,7 @@ function hitMap(section) {
       return { w: bmp.width, h: bmp.height, d: g.getImageData(0, 0, bmp.width, bmp.height).data };
     })());
     MAPS.get(section).catch(() => MAPS.delete(section));
+    keepRecent(MAPS);
   }
   return MAPS.get(section);
 }
@@ -1111,7 +1372,7 @@ async function methodCtx(runs, section, run, name) {
   const mine = all.find((a) => a.r.run === run).st;
   if (!mine) throw new Error("no per-tubule stages for this run (run clickmaps backfill)");
   const peers = all.filter((a) => a.st).flatMap((a) => Object.entries(a.st.models).map(([n, stg]) => ({ title: n, group: a.r.method, stages: stg })));
-  const truthName = "Paper stage (Yeongseok)";
+  const truthName = "Paper stage";
   const group = runs.find((r) => r.run === run).method;
   return { section, title: name || truthName, group, isTruth: !name, stages: name ? mine.models[name] || {} : mine.truth, truth: mine.truth, truthName, peers };
 }
@@ -1268,12 +1529,24 @@ function renderHelp() {
 
 // ---------- boot ----------
 async function boot() {
+  // Start works only once the tubule list is in (a few MB over the internet):
+  // say so rather than ignore clicks.
+  for (const b of [$("start"), $("start-guest")]) { b.disabled = true; b.dataset.text = b.textContent; b.textContent = "Loading…"; }
   S.cfg = await api("/api/config");
   $("version").textContent = "v" + S.cfg.version;
   $("backup-state").textContent = `Backups every ${S.cfg.backup_minutes} min`;
   S.tubules = await api("/api/tubules");
   S.byId = new Map(S.tubules.map((t) => [t.tubule_id, t]));
   $("start").addEventListener("click", login);
+  $("start-guest").addEventListener("click", loginGuest);
+  for (const b of [$("start"), $("start-guest")]) { b.disabled = false; b.textContent = b.dataset.text; }
+  $("guest-save-ok").addEventListener("click", saveGuestLabels);
+  $("guest-save-discard").addEventListener("click", discardGuest);
+  $("guest-save-cancel").addEventListener("click", () => { $("guest-save").hidden = true; });
+  $("guest-name").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") saveGuestLabels();
+    if (e.key === "Escape") $("guest-save").hidden = true;
+  });
   $("name").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
   $("logout").addEventListener("click", logout);
   $("prev").addEventListener("click", () => advance(-1));
@@ -1293,11 +1566,8 @@ async function boot() {
   bindSectionMap();
   bindTubuleViews();
   $("rv-blind").addEventListener("change", (e) => { S.blind = e.target.checked; store.set("blind", S.blind); renderSide(); });
-  $("export").addEventListener("click", () => {
-    window.location = "/api/export.csv?who=" + encodeURIComponent(S.session ? S.session.name : "manual");
-    toast("CSV downloaded. A copy is also saved in the workspace exports folder.");
-  });
   for (const b of document.querySelectorAll(".nav-item[data-view]")) b.addEventListener("click", () => setView(b.dataset.view));
+  if (store.get("updated")) { store.del("updated"); toast("The page was updated. Please log in again.", false, 12000); }
   // Resume an open session after a reload (sessionStorage) or from #session=ID.
   const hashId = (location.hash.match(/session=(\d+)/) || [])[1];
   const savedId = hashId || (store.get("session") || {}).id;

@@ -4,6 +4,7 @@ import csv
 import io
 import json
 import threading
+import time
 import urllib.request
 from http.server import ThreadingHTTPServer
 
@@ -138,7 +139,7 @@ def call(base, path, body=None, token=None):
 
 def test_server_session_label_logout(server, ws):
     app, base = server
-    code, html = call(base, "/")
+    code, html = call(base, "/app")
     assert code == 200 and app.token.encode() in html
     assert call(base, "/api/login", {"name": "Ann", "mode": "staging"})[0] == 403
     code, body = call(base, "/api/login", {"name": "Ann", "mode": "staging"}, app.token)
@@ -158,8 +159,8 @@ def test_server_session_label_logout(server, ws):
         app.token,
     )
     assert code == 400
-    labs = json.loads(call(base, "/api/labels?mode=staging")[1])
-    assert [(r["annotator"], r["value"]) for r in labs] == [("Ann", "I")]
+    labs = json.loads(call(base, f"/api/labels?mode=staging&session={sid}")[1])
+    assert [(r["mine"], r["value"]) for r in labs] == [(True, "I")]
     code, body = call(base, "/api/logout", {"session_id": sid}, app.token)
     out = json.loads(body)
     assert out["labels_this_session"] == 1
@@ -171,6 +172,125 @@ def test_server_session_label_logout(server, ws):
         app.token,
     )
     assert code == 401
+
+
+def test_token_survives_restart_so_open_tabs_keep_saving(server, ws):
+    """A deploy or checkin restarts the page; an open tab's token must still work."""
+    app, base = server
+    code, sid = call(base, "/api/login", {"name": "Ann", "mode": "staging"}, app.token)
+    assert code == 200
+    sid = json.loads(sid)["session_id"]
+    again = App(ws, backup_seconds=3600)  # the restarted page
+    assert again.token == app.token
+    assert (ws / "token.txt").stat().st_mode & 0o777 == 0o600
+    again.store.close()
+    code, body = call(base, "/api/token")
+    assert code == 200 and json.loads(body)["token"] == app.token
+
+
+def test_ping_reports_build_notice_and_who_is_online(server, ws):
+    app, base = server
+    code, body = call(base, "/api/login", {"name": "Ann", "mode": "staging"}, app.token)
+    sid = json.loads(body)["session_id"]
+    code, html = call(base, "/app")
+    assert app.build.encode() in html  # the page knows which code it runs
+    ping = json.loads(call(base, f"/api/ping?session={sid}")[1])
+    assert ping == {"build": app.build, "update": None}
+    online = json.loads(call(base, "/api/online")[1])
+    assert [o["annotator"] for o in online] == ["Ann"]
+    (ws / "UPDATE_NOTICE.json").write_text(
+        json.dumps({"phase": "warning", "deadline": time.time() + 120})
+    )
+    update = json.loads(call(base, "/api/ping")[1])["update"]
+    assert update["phase"] == "warning" and 115 <= update["seconds_left"] <= 120
+    call(base, "/api/logout", {"session_id": sid}, app.token)
+    assert json.loads(call(base, "/api/online")[1]) == []  # logged out = gone
+
+
+def test_guest_is_not_an_annotator_name(server):
+    """Guest labels are never saved, so no labels may be filed under "Guest"."""
+    app, base = server
+    for name in ("Guest", " guest ", "GUEST"):
+        login = {"name": name, "mode": "staging"}
+        code, body = call(base, "/api/login", login, app.token)
+        assert code == 400 and b"own name" in body
+
+
+def test_labels_are_anonymous_on_the_page(server, ws):
+    """Decision 030: the page never learns who gave which label; only counts."""
+    app, base = server
+    tid1, tid2 = "src/series-0/candidate-1", "src/series-0/candidate-2"
+    sids = {}
+    for name, value in (("Ann", "IV"), ("Bob", "V")):
+        _, body = call(base, "/api/login", {"name": name, "mode": "staging"}, app.token)
+        sids[name] = json.loads(body)["session_id"]
+        for tid in (tid1, tid2):
+            lab = {"session_id": sids[name], "tubule_id": tid, "value": value}
+            assert call(base, "/api/label", lab, app.token)[0] == 200
+    app.store.set_label(
+        tid1, "staging", "Yeongseok", "VI", origin="paper",
+        detail={"transcription_checked_by": "Ann", "needs_check": False},
+    )  # fmt: skip
+    raw = call(base, f"/api/labels?mode=staging&session={sids['Ann']}")[1]
+    for name in (b"Ann", b"Bob", b"Yeongseok", b"annotator", b"updated_at"):
+        assert name not in raw
+    labs = json.loads(raw)
+    assert sorted((r["value"], r["mine"]) for r in labs if r["origin"] == "web") == [
+        ("IV", True), ("IV", True), ("V", False), ("V", False),
+    ]  # fmt: skip
+    paper = [r for r in labs if r["origin"] == "paper"][0]
+    assert paper["detail"]["transcription_checked"] is True
+    # without a session nothing is "mine"
+    anon = json.loads(call(base, "/api/labels?mode=staging")[1])
+    assert not any(r["mine"] for r in anon)
+    # the only per-person figures: counts, in total and per stage
+    people = json.loads(call(base, "/api/progress?mode=staging")[1])
+    got = {(p["name"], p["origin"]): (p["n"], p["values"]) for p in people}
+    assert got[("Ann", "web")] == (1, {"IV": 1})  # candidate-2 is flagged: not counted
+    assert got[("Yeongseok", "paper")] == (1, {"VI": 1})
+    # no CSV download on the page; review files lose their names
+    assert call(base, "/api/export.csv")[0] == 404
+    (ws / "review" / "eyespy").mkdir(parents=True)
+    index = {
+        "sources": [{"annotator": "Yeongseok", "origin": "paper", "n": 3}],
+        "note": "Yeongseok's paper labels; checked by Ann",
+    }
+    (ws / "review" / "eyespy" / "index.json").write_text(json.dumps(index))
+    served = json.loads(call(base, "/ws/review/eyespy/index.json")[1])
+    assert served == {
+        "sources": [{"origin": "paper", "n": 3}],
+        "note": "an annotator's paper labels; checked by an annotator",
+    }
+
+
+def test_online_list_is_not_served_through_the_tunnel(server):
+    app, base = server
+    req = urllib.request.Request(base + "/api/online")
+    req.add_header("Cf-Connecting-Ip", "203.0.113.5")
+    try:
+        urllib.request.urlopen(req)
+        raise AssertionError("served through the tunnel")
+    except urllib.error.HTTPError as e:
+        assert e.code == 404
+    assert call(base, "/api/online")[0] == 200  # from the server itself
+
+
+def test_short_or_missing_token_file_is_replaced(ws):
+    (ws / "token.txt").write_text("short\n")
+    app = App(ws, backup_seconds=3600)
+    assert len(app.token) >= 32 and (ws / "token.txt").read_text().strip() == app.token
+    app.store.close()
+
+
+def test_landing_page_is_the_guide(server, ws):
+    app, base = server
+    code, html = call(base, "/")
+    assert code == 200 and b"How to stage tubules" in html
+    assert app.token.encode() not in html
+    assert b'href="/app"' in html
+    (ws / "guide").mkdir()
+    (ws / "guide" / "01-login.png").write_bytes(b"png")
+    assert call(base, "/ws/guide/01-login.png") == (200, b"png")
 
 
 def test_server_only_serves_workspace_images(server):

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EyeSpy Staging Guide</title>
+<link rel="icon" href="/static/logo.svg">
+<link rel="stylesheet" href="/static/house.css">
+<link rel="stylesheet" href="/static/guide.css">
+</head>
+<body class="guide">
+<header class="g-bar">
+  <div class="g-bar-in">
+    <div class="brand-block">
+      <div class="brand-mark"><img src="/static/logo.svg" alt="Logo"></div>
+      <div><strong>EyeSpy Staging</strong><span>Tubule annotation</span></div>
+    </div>
+    <a class="button primary" href="/app">Open the annotation page →</a>
+  </div>
+</header>
+
+<main class="g-main">
+  <section class="g-hero">
+    <p class="eyebrow">Guide for annotators</p>
+    <h1>How to stage tubules</h1>
+    <p class="lede">Each picture shows one seminiferous tubule from a PAS-stained mouse testis
+      section. Press the key for the stage you see (I–XII). Each label is saved
+      as soon as you press the key. That's all.</p>
+    <ol class="g-toc">
+      <li><a href="#start">Sign in</a></li>
+      <li><a href="#progress">See how far we are</a></li>
+      <li><a href="#choose">Choose what to stage</a></li>
+      <li><a href="#stage">Stage a tubule</a></li>
+      <li><a href="#save">Save and finish</a></li>
+      <li><a href="#models">Optional: compare with the models</a></li>
+    </ol>
+  </section>
+
+  <section class="g-step" id="start">
+    <div class="g-num">1</div>
+    <div class="g-body">
+      <h2>Sign in</h2>
+      <p>Click <b>Open the annotation page</b>. Type your name and choose <b>Staging</b>, then <b>Start</b>.</p>
+      <ul>
+        <li>Spell your name the same way every time. Your labels are filed under it. Names used before
+          appear as buttons under the box, so you can click yours.</li>
+        <li>There is no password on this screen. You already proved who you are with the code we emailed you.</li>
+        <li><b>Just want to look around?</b> Click <b>Just look around (guest)</b> instead. No name is needed, and
+          <b>nothing you label is saved</b>: when you log out you can choose to save your labels under a name, and if
+          you close the tab they are lost. To save as you go, sign in with your name.</li>
+      </ul>
+      <figure><img src="/ws/guide/01-login.png" alt="The sign-in screen: name box, the Staging choice and the Start button"></figure>
+    </div>
+  </section>
+
+  <section class="g-step" id="progress">
+    <div class="g-num">2</div>
+    <div class="g-body">
+      <h2>See how far we are</h2>
+      <p>After you sign in, the <b>Progress</b> page opens. You can reach it at any time from the left-hand menu.</p>
+      <ul>
+        <li><b>Top boxes:</b> totals for everyone. How many tubules have a stage, how many have been staged by two or more people, and how many you have done.</li>
+        <li><b>By section:</b> one row per tissue section. <i>Have a stage</i> counts tubules staged by anyone, <i>2+ people</i> counts those staged by at least two people, and <i>You</i> counts your own.</li>
+        <li><b>Labels per stage</b> shows how the labels so far divide up, on screen and on paper.</li>
+        <li><b>By annotator</b> shows how many labels each person has given. That count is the only place names
+          appear: the page never shows who gave which stage.</li>
+      </ul>
+      <figure><img src="/ws/guide/02-progress.png" alt="The Progress page: total boxes and the By section table"></figure>
+    </div>
+  </section>
+
+  <section class="g-step" id="choose">
+    <div class="g-num">3</div>
+    <div class="g-body">
+      <h2>Choose what to stage</h2>
+      <p>There are two ways to choose. Use whichever you prefer.</p>
+      <h3>A. From a list</h3>
+      <p>Click <b>Annotate</b> in the menu. At the top, choose a <b>Section</b> (or <i>All sections</i>) and what to
+        <b>Show</b>:</p>
+      <ul>
+        <li><b>Not staged by me</b> (the usual choice): tubules you haven't staged yet, starting with ones nobody has staged.</li>
+        <li><b>No stage from anyone yet</b>: only tubules that nobody has staged.</li>
+        <li><b>All accepted tubules</b>: every tubule, including ones you have already staged.</li>
+      </ul>
+      <figure><img src="/ws/guide/03-choose-list.png" alt="The Section and Show lists at the top of the Annotate page"></figure>
+      <h3>B. From a map of the section</h3>
+      <p>On <b>Progress</b>, click a row under <b>By section</b>. The whole section opens. Tubules that already have
+        a stage are coloured and show their numeral. Uncoloured tubules have no stage yet.
+        <b>Click any tubule</b> to open it for staging. Untick <b>Overlay</b> (or press <b>O</b>) to see the section
+        on its own, without outlines or stages.</p>
+      <figure><img src="/ws/guide/04-section-map.png" alt="The section map: coloured tubules with their stage, uncoloured ones still to do"></figure>
+    </div>
+  </section>
+
+  <section class="g-step" id="stage">
+    <div class="g-num">4</div>
+    <div class="g-body">
+      <h2>Stage a tubule</h2>
+      <p>Look at the tubule and <b>press the key for its stage</b>. The label is saved and the next tubule appears.
+        The yellow line marks the tubule's outline.</p>
+      <div class="g-keys">
+        <span><kbd>1</kbd> I</span><span><kbd>2</kbd> II–III</span><span><kbd>4</kbd> IV</span>
+        <span><kbd>5</kbd> V</span><span><kbd>6</kbd> VI</span><span><kbd>7</kbd> VII</span>
+        <span><kbd>8</kbd> VIII</span><span><kbd>9</kbd> IX</span><span><kbd>0</kbd> X</span>
+        <span><kbd>-</kbd> XI</span><span><kbd>=</kbd> XII</span><span><kbd>B</kbd> Can't stage / bad crop</span>
+      </div>
+      <p class="g-small">You can also click the stage buttons on the right instead of pressing keys.</p>
+      <figure><img src="/ws/guide/05-annotate.png" alt="The Annotate page: the tubule on the left, the stage buttons and other people's labels on the right"></figure>
+      <ul>
+        <li><b>Zoom:</b> scroll the mouse wheel. <b>Move around:</b> drag. <b>Reset:</b> double-click.
+          <kbd>O</kbd> shows or hides the outline.</li>
+        <li><b>Skip:</b> <kbd>→</kbd> or Space. <b>Go back:</b> <kbd>←</kbd>. <b>Remove your label:</b> <kbd>Delete</kbd>.</li>
+        <li><b>Other people's stages</b> appear on the right, under yours, without their names. If you disagree, simply give
+          your own stage. Disagreement between experts is useful information, not a mistake.</li>
+        <li>If the picture is cut off, blurred, or shows more than one tubule, press <kbd>B</kbd>.</li>
+        <li>Some sections were staged on paper earlier. For those, a <b>Paper stage</b> panel shows the
+          handwritten mark. You don't have to do anything with it. If you notice the computer misread the
+          handwriting, press <kbd>F</kbd> and then the stage written on the paper.</li>
+        <li><b>Keys &amp; help</b> in the menu lists every key.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="g-step" id="save">
+    <div class="g-num">5</div>
+    <div class="g-body">
+      <h2>Save and finish</h2>
+      <p><b>You never need to press save.</b> Each label is stored on the server as soon as you press the key.
+        The bottom of the left-hand menu confirms it:</p>
+      <ul>
+        <li><span class="g-ok">✓ All saved</span> means everything you've done is stored.</li>
+        <li><span class="g-bad">⚠ … not saved yet, retrying…</span> means the connection dropped. Keep the page
+          open; it keeps retrying on its own.</li>
+      </ul>
+      <figure class="g-narrow"><img src="/ws/guide/06-saved.png" alt="The bottom of the menu showing your name and All saved"></figure>
+      <p>When you finish, click <b>Log out</b> in the menu. You can stop at any point and pick up where you
+        left off later: <i>Not staged by me</i> only shows tubules you haven't done.</p>
+    </div>
+  </section>
+
+  <section class="g-step" id="models">
+    <div class="g-num">6</div>
+    <div class="g-body">
+      <h2>Optional: compare with the models</h2>
+      <p>Sign in with <b>Model review</b> instead of Staging to give your stage for a fixed set of tubules and
+        then see what the paper stage and two computer models said.
+        <b>Blind mode</b> hides their answers until you have given yours.
+        The <b>Overview</b> page then shows whole sections staged by each model. Click a tubule there to see every
+        tubule the model gave the same stage.</p>
+      <figure><img src="/ws/guide/07-overview.png" alt="The Overview page: whole sections staged by each model"></figure>
+      <p class="g-small">Model review answers are kept separate from your staging labels.</p>
+    </div>
+  </section>
+
+  <footer class="g-foot">
+    <a class="button primary" href="/app">Open the annotation page →</a>
+    <p>Questions or problems? Contact the person who sent you the link.</p>
+  </footer>
+</main>
+<script>
+  // Hide a picture that is not there yet (for example before screenshots are made).
+  for (const img of document.querySelectorAll("figure img")) {
+    img.addEventListener("error", () => { img.closest("figure").hidden = true; });
+  }
+</script>
+</body>
+</html>

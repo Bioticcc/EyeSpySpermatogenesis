@@ -242,6 +242,8 @@ const othersOf = (tid) => labelsOf(tid).filter((l) => !(l.origin === "web" && l.
 // Decision 031: the server withholds other people's on-screen stages and says only
 // that a label exists ("hidden"), never who gave it.
 const isGrading = (sourceName) => (S.cfg.grading_sections || []).includes(sourceName);
+// Wild-type (naive, non-synchronized) sections: "WT_..." files and the #66 Naive pair.
+const isWildType = (sourceName) => /^WT[_ -]|naive/i.test(sourceName);
 const hasLabel = (l) => !!(l.value || l.hidden);
 // How many people have staged a tubule; paper plus on-screen by one person counts once.
 const peopleOn = (tid) => labelsOf(tid).filter((l) => hasLabel(l) && !l.repeat).length;
@@ -799,7 +801,11 @@ function renderProgress() {
     category("Priority Scoring Samples");
     rows.filter(([, r]) => isGrading(r.name)).forEach(addRow);
     category("Training Samples");
-    rows.filter(([, r]) => !isGrading(r.name)).forEach(addRow);
+    // Wild-type sections first (owner, 2026-11-20), then the rest in their usual order.
+    const training = rows.filter(([, r]) => !isGrading(r.name));
+    const wt = training.filter(([, r]) => isWildType(r.name))
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    [...wt, ...training.filter(([, r]) => !isWildType(r.name))].forEach(addRow);
   } else rows.forEach(addRow);
 
   if (st) setTimeout(prefetchSections, 1500); // after the page itself has loaded

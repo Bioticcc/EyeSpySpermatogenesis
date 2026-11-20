@@ -87,7 +87,8 @@ list switches to "All accepted tubules").
 
 **Priority scoring samples (decision 031).** "By section" has two categories:
 **Priority Scoring Samples** (`#66_Naive-P61_1.tif` and `#66_Naive-P61_2.tif`, each
-in a dark green bubble) and **Training Samples** (every other section). Annotate
+in a dark green bubble) and **Training Samples** (every other section; wild-type
+sections, `WT_…` files, are listed first, owner 2026-11-20). Annotate
 shows nothing about other people on any section. The server enforces this:
 `/api/labels` sends neither the name nor the on-screen stage of another person.
 Paper readings appear only in the "Paper readings to check" list.
